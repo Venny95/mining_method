@@ -1,0 +1,22 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+#RStudio
+.Rproj.user/
+
+#Data
+data/raw/
+data/processed/
+
+#Jupyter
+.ipynb_checkpoints/
+
+#OS
+Thumbs.db
+.DS_Store
+
+#Secrets
+.Renviron
