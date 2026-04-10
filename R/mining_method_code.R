@@ -1,5 +1,7 @@
-library(dodgr)
+#This code is for urban mining method
+#At this stage, the method is developed for Joensuu area
 
+library(dodgr)
 library(DBI)
 library(RPostgres)
 library(sf)
@@ -33,6 +35,7 @@ dbListTables(con)
 #Luetaan aineistot tietokannasta suoraan sf-muotoon
 buil_sf <- st_read(con, query = "SELECT * FROM public.joensuun_rakennukset")
 yri_sf <- st_read(con, query = "SELECT * FROM public.yritys")
+
 
 #Dodgr-paketille täytyy olla 4326
 buil_sf <- st_transform(buil_sf, 4326)
