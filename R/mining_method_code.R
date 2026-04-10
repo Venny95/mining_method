@@ -33,8 +33,10 @@ dbGetQuery(con, "SELECT current_database(), current_user, current_timestamp;")
 dbListTables(con)
 
 #Luetaan aineistot tietokannasta suoraan sf-muotoon
-buil_sf <- st_read(con, query = "SELECT * FROM public.joensuun_rakennukset")
 yri_sf <- st_read(con, query = "SELECT * FROM public.yritys")
+
+#Read Joensuu area buildings
+buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_buildings_RYHTI.gpkg")
 
 
 #Dodgr-paketille täytyy olla 4326
