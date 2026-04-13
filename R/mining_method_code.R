@@ -13,27 +13,36 @@ library(pacman, qiscoR)
 library(mapview)
 library(sfnetworks)
 
-#Luetaan aineistot tietokannasta suoraan sf-muotoon
+# Read datasets directly from GeoPackage files as sf objects
+
+# Company dataset
 yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/yritys1.gpkg")
 
-#Read Joensuu area buildings
+# Joensuu building stock dataset
 buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_kantakaupungin_asemakaavoitettu_alue_Joensuun_kaupunki_20251029.gpkg")
 
-#Read OSM data
+# OpenStreetMap (OSM) road network dataset (downloaded from Geofabrik)
 roads <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/OSM_roads_rajattu2.gpkg")
 
 
-#Dodgr-paketille täytyy olla 4326
+
+# Reproject all spatial datasets to WGS84 (EPSG:4326)
 buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
 roads <- st_transform(roads, 4326)
+
+# Visual inspection of spatial layers
 mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf, col.regions = "red") +
   mapview(roads, col.regions = "steelblue")
 
-#Otetaan rakennuksista näyte, jossa 500 kohdetta
+#Create a random sample of 500 buildings for development
 buil_sf <- buil_sf %>%
   slice_sample(n = 500)
+
+# Extract coordinates as matrices (longitude, latitude)
+buil_mat <- st_coordinates(buil_sf)
+yri_mat  <- st_coordinates(yri_sf)
 
 
 
@@ -54,74 +63,77 @@ buil_sf <- buil_sf %>%
 #  st_as_sf()
 
 
-names(roads)
 
 
+
+# Convert geometries to LINESTRING format (required for routing/network analysis)
 roads <- st_cast(roads, "LINESTRING")
 
-#Aineistossa on tiepätkiä, jotka luokiteltu "unknown"
+# Count road segments classified as "unknown"
+sum(roads$fclass == "unknown", na.rm = TRUE)
+# Reclassify "unknown" road segments as "residential"
 roads$fclass[roads$fclass == "unknown"] <- "residential"
 
-#Painota verkko reititystä varten (luo dodgr-graafin)
+# Build routing graph from street network using dodgr (weighted for motor vehicles)
 graph <- weight_streetnet(roads, wt_profile = "motorcar", type_col = "fclass")
 
-# Koordinaatit matriisina (lon, lat)
-buil_mat <- st_coordinates(buil_sf)
-yri_mat  <- st_coordinates(yri_sf)
-
-# dmat: matriisi [n_buil x n_yri], arvot metreinä (tai profiilin muk. painotus)
+# Compute distance matrix [n_buildings x n_companies]
+# Values represent shortest-path distances based on the weighted network
 dmat <- dodgr_dists(graph, from = buil_mat, to = yri_mat)
 summary(dmat)
 
-#Etsi lähin yritys kustakin rakennuksesta (myöhemmin tätä on muokattava)
+# Find nearest company for each building based on minimum network distance
 nearest <- apply(dmat, 1, function(x) which.min(x))
 nearest <- unlist(nearest)
 
-#Hae reitit (vain valittuun lähimpään kohteeseen)
+# Extract shortest paths to nearest company for each building
 paths <- dodgr_paths(graph,
                      from = buil_mat,
                      to   = yri_mat[nearest, , drop = FALSE],
                      vertices = TRUE)
 
-
+# Check whether the object "paths" exists in the environment
 exists("paths")
+# Check the length of the "paths" object (number of elements)
 length(paths)
-str(paths)
 
-#Muunna reittiverteksistä LINESTRINGit
 
-#Haetaan verkon solmut
+# Convert routing vertex sequences into LINESTRING geometries for visualization
+
+# Extract network vertices from the routing graph
 verts <- dodgr_vertices(graph)
 
-
-make_line <- function(v) {  #Solmuista viivat
-  xy <- verts[match(v, verts$id), c("x", "y")]   #Etsitään solmujen koordinaatit
-  st_linestring(as.matrix(xy)) #Tehdään linestring
+# Function to convert a sequence of vertex IDs into an sf LINESTRING
+make_line <- function(v) {
+  # Match vertex IDs to coordinates
+  xy <- verts[match(v, verts$id), c("x", "y")]
+  # Create LINESTRING geometry from coordinate matrix
+  st_linestring(as.matrix(xy))
 }
 
-#Käytetään yllä olevaa finktiota kaikkiin reitteihin
+# Apply the function to all routes (each route is a list; take first element)
 route_lines <- lapply(paths, function(p) make_line(p[[1]]))
 
-#Yhdistetään viivat sf-objektiksi
+# Combine LINESTRING geometries into an sf sfc object (WGS84 CRS)
 routes_sfc  <- st_sfc(route_lines, crs = 4326)
 
-# sf-viivataso
+# Create final sf object with attributes and geometry
 routes_sf <- st_sf(
-  buil_id = buil_sf$id,
-  nearest_yri = nearest,
-  length_m = dmat[cbind(seq_len(nrow(buil_sf)), nearest)],
+  buil_id = buil_sf$id, #Building ID
+  nearest_yri = nearest, #Index of nearest company
+  length_m = dmat[cbind(seq_len(nrow(buil_sf)), nearest)], #Network distance
   geometry = routes_sfc
 )
 
-
+# Visualize road network, buildings, companies, and computed routes
 mapview(roads, color = "steelblue", lwd = 3)+
   mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf,  col.regions = "red") +
   mapview(routes_sf, color = "black", lwd = 3)
   
 
-#Tehdään testiaineisto, jolla voidaan testata MapLibren toimintaa
-#Poistetaan muuttujia
+# Create a test dataset to validate MapLibre functionality
+# Reduce datasets to minimal attributes for testing
 names(buil_sf)
 testidata <- buil_sf %>% 
   select(id)
@@ -131,22 +143,19 @@ testitiet <- routes_sf %>%
   select(buil_id)
 
 
-# Varmista geometriakentän nimi, jos haluat nimen "geom"
-# (oletusnimi säilyy, ellet muuta)
-# st_geometry(buil) <- "geom"  # vain jos haluat nimetä sen nimenomaan "geom"
-
+# Write building test dataset to database
 st_write(
-  obj    = testidata,                                 # sf-objekti
-  dsn    = con,                                       # DBI-yhteys
-  layer  = Id(schema = "public", table = "rakennukset_testi"),     # kohdeschema+taulu
-  layer_options = c("FID=gid"),                       # valinnainen: pk-kentän nimi
-  delete_layer = TRUE                                 # ylikirjoita olemassa oleva taulu
+  obj    = testidata,                                 # sf-object to write
+  dsn    = con,                                       # DBI connection
+  layer  = Id(schema = "public", table = "rakennukset_testi"),     # target schema + table
+  layer_options = c("FID=gid"),                       # optional: name of primary key field
+  delete_layer = TRUE                                 # overwrite existing table if it exists
 )
 
 st_write(
-  obj    = testitiet,                                 # sf-objekti
-  dsn    = con,                                       # DBI-yhteys
-  layer  = Id(schema = "public", table = "tiet_testi"),     # kohdeschema+taulu
-  layer_options = c("FID=gid"),                       # valinnainen: pk-kentän nimi
-  delete_layer = TRUE                                 # ylikirjoita olemassa oleva taulu
+  obj    = testitiet,
+  dsn    = con,
+  layer  = Id(schema = "public", table = "tiet_testi"),
+  layer_options = c("FID=gid"),
+  delete_layer = TRUE
 )
