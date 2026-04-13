@@ -13,65 +13,31 @@ library(pacman, qiscoR)
 library(mapview)
 library(sfnetworks)
 
-#file.edit("~/.Renviron")
-#dbDisconnect(con)
-
-#Avataan tietokantayhteys (.Renviron)
-con <- dbConnect(
-  RPostgres::Postgres(),
-  host     = Sys.getenv("PG_HOST"),
-  port     = as.integer(Sys.getenv("PG_PORT")),
-  dbname   = Sys.getenv("PG_DB"),
-  user     = Sys.getenv("PG_USER"),
-  password = Sys.getenv("PG_PASSWORD"),
-  sslmode  = Sys.getenv("PG_SSLMODE") # esim. "require" tuotannossa
-)
-
-# Tarkistetaan yhteys
-dbIsValid(con)
-dbGetQuery(con, "SELECT current_database(), current_user, current_timestamp;")
-dbListTables(con)
-
 #Luetaan aineistot tietokannasta suoraan sf-muotoon
-yri_sf <- st_read(con, query = "SELECT * FROM public.yritys")
+yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/yritys1.gpkg")
 
 #Read Joensuu area buildings
-buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_buildings_RYHTI.gpkg")
+buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_kantakaupungin_asemakaavoitettu_alue_Joensuun_kaupunki_20251029.gpkg")
+
+#Read OSM data
+roads <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/OSM_roads_rajattu2.gpkg")
 
 
 #Dodgr-paketille täytyy olla 4326
 buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
+roads <- st_transform(roads, 4326)
 mapview(buil_sf, col.regions = "orange") +
-  mapview(yri_sf, col.regions = "red")
+  mapview(yri_sf, col.regions = "red") +
+  mapview(roads, col.regions = "steelblue")
 
-#Otetaan rakennuksista näyte, jossa 20 kohdetta
+#Otetaan rakennuksista näyte, jossa 500 kohdetta
 buil_sf <- buil_sf %>%
-  slice_sample(n = 20)
+  slice_sample(n = 500)
 
-#OSM-datan tietojen tarkastus:
-#available_features()
-#available_tags("highway")
 
-#BBoxin luominen rakennusten perusteella ei toimi oikein toimi oikein:
-#bbox <- st_bbox(st_union(satun_buil, yri_sf))
-#Joten käytetään osmdata-paketin kaupunkitoimintoa:
-kysely <- opq("Joensuu") |>
-  add_osm_feature(key ="highway", value= c("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential"))
-streetnet <- osmdata_sf(kysely)
-streets <- streetnet$osm_lines
-#class(streets)
-
-#Plotataan tarkastelua varten
-mapview(streets, color = "steelblue", lwd = 3) +
-  mapview(buil_sf, col.regions = "orange") +
-  mapview(yri_sf, col.regions = "red")
 
 #Lisätään verteksi rakennuksen lähelle:
-
-
-
-
 
 #1) Muunna tieaineisto sfnetworkiksi
 #net <- as_sfnetwork(streets, directed = FALSE)
@@ -88,32 +54,28 @@ mapview(streets, color = "steelblue", lwd = 3) +
 #  st_as_sf()
 
 
+names(roads)
 
 
+roads <- st_cast(roads, "LINESTRING")
 
-
-
-
-
-
-
-
-
-
+#Aineistossa on tiepätkiä, jotka luokiteltu "unknown"
+roads$fclass[roads$fclass == "unknown"] <- "residential"
 
 #Painota verkko reititystä varten (luo dodgr-graafin)
-graph <- weight_streetnet(streets, wt_profile = "motorcar")
+graph <- weight_streetnet(roads, wt_profile = "motorcar", type_col = "fclass")
 
 # Koordinaatit matriisina (lon, lat)
 buil_mat <- st_coordinates(buil_sf)
 yri_mat  <- st_coordinates(yri_sf)
 
 # dmat: matriisi [n_buil x n_yri], arvot metreinä (tai profiilin muk. painotus)
-dmat <- dodgr::dodgr_dists(graph, from = buil_mat, to = yri_mat)
-
+dmat <- dodgr_dists(graph, from = buil_mat, to = yri_mat)
+summary(dmat)
 
 #Etsi lähin yritys kustakin rakennuksesta (myöhemmin tätä on muokattava)
-nearest <- apply(dmat, 1, which.min)
+nearest <- apply(dmat, 1, function(x) which.min(x))
+nearest <- unlist(nearest)
 
 #Hae reitit (vain valittuun lähimpään kohteeseen)
 paths <- dodgr_paths(graph,
@@ -121,15 +83,26 @@ paths <- dodgr_paths(graph,
                      to   = yri_mat[nearest, , drop = FALSE],
                      vertices = TRUE)
 
+
+exists("paths")
+length(paths)
+str(paths)
+
 #Muunna reittiverteksistä LINESTRINGit
+
+#Haetaan verkon solmut
 verts <- dodgr_vertices(graph)
 
-make_line <- function(v) {
-  xy <- verts[match(v, verts$id), c("x", "y")]
-  st_linestring(as.matrix(xy))
+
+make_line <- function(v) {  #Solmuista viivat
+  xy <- verts[match(v, verts$id), c("x", "y")]   #Etsitään solmujen koordinaatit
+  st_linestring(as.matrix(xy)) #Tehdään linestring
 }
 
+#Käytetään yllä olevaa finktiota kaikkiin reitteihin
 route_lines <- lapply(paths, function(p) make_line(p[[1]]))
+
+#Yhdistetään viivat sf-objektiksi
 routes_sfc  <- st_sfc(route_lines, crs = 4326)
 
 # sf-viivataso
@@ -141,7 +114,7 @@ routes_sf <- st_sf(
 )
 
 
-mapview(streets, color = "steelblue", lwd = 3)+
+mapview(roads, color = "steelblue", lwd = 3)+
   mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf,  col.regions = "red") +
   mapview(routes_sf, color = "black", lwd = 3)
