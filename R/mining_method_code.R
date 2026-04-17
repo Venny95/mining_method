@@ -31,14 +31,24 @@ buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
 roads <- st_transform(roads, 4326)
 
+#Filter detached houses from buildings where structural material is wood
+names(buil_sf)
+head(buil_sf)
+buil_sf <- buil_sf %>%
+  filter(kantavien_rakenteiden_rakennusaine == "Puu",
+         paaasiallinen_kayttotarkoitus == "Pientalo")
+
+head(buil_sf)
+
 # Visual inspection of spatial layers
 mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf, col.regions = "red") +
   mapview(roads, col.regions = "steelblue")
 
 #Create a random sample of 10000 buildings for development
-buil_sf <- buil_sf %>%
-  slice_sample(n = 800)
+#nrow(buil_sf)
+#buil_sf <- buil_sf %>%
+#  slice_sample(n = 150)
 
 # Extract coordinates as matrices (longitude, latitude)
 buil_mat <- st_coordinates(buil_sf)
@@ -87,10 +97,10 @@ is.matrix(dmat)
 na_rows <- which(apply(dmat, 1, function(x) any(is.na(x))))
 na_rows
 
-# Tunnista rivit, joilla on NA
+# Find the rows with NA
 na_mask <- apply(dmat, 1, function(x) any(is.na(x)))
 
-# Poista kaikki NA-rivit kaikista tarvittavista objekteista
+# Remove the ones with NA
 summary(dmat)
 dmat <- dmat[!na_mask, , drop = FALSE]
 is.matrix(dmat)
@@ -178,8 +188,7 @@ mapview(roads, color = "steelblue", lwd = 3)+
   
 
 # Create a dataset to visualize with MapLibre
-# Write datasets to geopackage
-st_write(buil_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_buildings.gpkg")
-st_write(routes_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_routes.gpkg")
-st_write(yri_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_companies.gpkg")
-
+# Write datasets to geojson
+st_write(buil_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_buildings.geojson")
+st_write(routes_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_routes.geojson")
+st_write(yri_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_companies.geojson")
