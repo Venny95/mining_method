@@ -31,6 +31,15 @@ buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
 roads <- st_transform(roads, 4326)
 
+#Filter detached houses from buildings where structural material is wood
+names(buil_sf)
+head(buil_sf)
+buil_sf <- buil_sf %>%
+  filter(kantavien_rakenteiden_rakennusaine == "Puu",
+         paaasiallinen_kayttotarkoitus == "Pientalo")
+
+head(buil_sf)
+
 # Visual inspection of spatial layers
 mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf, col.regions = "red") +
@@ -180,6 +189,6 @@ mapview(roads, color = "steelblue", lwd = 3)+
 
 # Create a dataset to visualize with MapLibre
 # Write datasets to geojson
-st_write(buil_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_buildings.geojson")
-st_write(routes_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_routes.geojson")
-st_write(yri_sf, "C:/Temp/codes/MAPLIBRE/data/processed/joensuu_mining_method_companies.geojson")
+st_write(buil_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_buildings.geojson")
+st_write(routes_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_routes.geojson")
+st_write(yri_sf, "C:/Temp/codes/MAPLIBRE/data/processed/Joensuu_wooden_detached_houses/joensuu_mining_method_companies.geojson")
