@@ -21,5 +21,10 @@ QGIS/
 Thumbs.db
 .DS_Store
 
+# QGIS project files
+*.qgz
+*.qgs
+*.qgd
+
 #Secrets
 .Renviron
