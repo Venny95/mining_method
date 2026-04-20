@@ -8,9 +8,11 @@ The method is developed within the **EU-MAT: Effective Urban Material Mining in 
 
 ### Demo version
 
-Data processing and analysis will be primarily conducted using **R**, which serves as the core environment for handling building stock data, material calculations, and analytical workflows. A demo version of the method is planned to be developed with a **visual user interface**. The demo will combine:
-- **MapLibre (JavaScript)** for browser-based map visualisation,
-- **Python** and **OSMR** for route visualisation.
+**R** is used for handling data and analysis (material calculations, proximity, routing costs, etc.).
+
+A demo version of the method is planned to be developed with a visual user interface. The demo will combine:
+- **JavaScript** and **MapLibre** for browser-based demo version map visualisation,
+- **OSMR** for routes of demo version visualisation.
 
 The MapLibre-based web interface will allow the user to select a building of interest directly on the map. Based on the selected building:
 - Python and OSMR will calculate transport routes from the building to facilities for further processing or reuse of demolition materials.
