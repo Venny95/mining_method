@@ -23,7 +23,9 @@ buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
 roads <- st_transform(roads, 4326)
 
+#At the moment, the MI coefficients calculation method is for residential detached buildings only and for WOOD only
 #Filter detached houses from buildings where structural material is wood
+#OBS! "Pientalo" means slightly different than detached house.
 names(buil_sf)
 head(buil_sf)
 buil_sf <- buil_sf %>%
@@ -53,7 +55,43 @@ buil_sf <- buil_sf |>
     )
   )
 
-head(buil_sf$decade, 50)
+
+
+# MI COEFFICIENT for wood
+buil_sf <- buil_sf |>
+  mutate(
+    MI_wood = case_when(
+      decade == 1940 ~ kerrosala * 152,
+      decade == 1950 ~ kerrosala * 48,
+      decade == 1960 ~ kerrosala * 23,
+      decade == 1970 ~ kerrosala * 53,
+      decade == 1980 ~ kerrosala * 38,
+      decade == 1990 ~ kerrosala * 33,
+      decade == 2000 ~ kerrosala * 53
+    )
+  ) |>
+  filter(!is.na(MI_wood))
+
+head(buil_sf$MI_wood)
+
+
+
+# MI COEFFICIENT for concrete
+buil_sf <- buil_sf |>
+  mutate(
+    MI_concrete = case_when(
+      decade == 1940 ~ kerrosala * 758,
+      decade == 1950 ~ kerrosala * 818,
+      decade == 1960 ~ kerrosala * 840,
+      decade == 1970 ~ kerrosala * 244,
+      decade == 1980 ~ kerrosala * 468,
+      decade == 1990 ~ kerrosala * 361,
+      decade == 2000 ~ kerrosala * 467
+    )
+  ) |>
+  filter(!is.na(MI_concrete))
+
+head(buil_sf$MI_concrete)
 
 
 
