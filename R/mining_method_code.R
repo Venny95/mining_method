@@ -144,20 +144,36 @@ nearest_wood <- unlist(nearest_wood)
 nearest_conc <- apply(dmat_conc, 1, which.min)
 nearest_conc <- unlist(nearest_conc)
 
-#Merge nearest company name and distances into buil_sf
 
-# Extract distance to selected (nearest) wood company
+#=====================================================
+#Merge nearest company name and distances into buil_sf
+##====================================================
+
+# Extract distance to nearest wood company
 buil_sf$dist_wood <- dmat_wood[
   cbind(1:nrow(dmat_wood), nearest_wood)
 ]
 
 buil_sf$dist_wood[is.infinite(buil_sf$dist_wood)] <- NA # Convert infinite values (unreachable routes) to NA for clarity
 
-# Extract distance to selected (nearest) concrete company
+# Extract distance to nearest concrete company
 buil_sf$dist_conc <- dmat_conc[
   cbind(1:nrow(dmat_conc), nearest_conc)
 ]
 buil_sf$dist_conc[is.infinite(buil_sf$dist_conc)] <- NA # Convert infinite values to NA
+
+# Add company coordinates to buil_sf
+# Company coordinates
+wood_coords <- st_coordinates(yri_wood)
+conc_coords <- st_coordinates(yri_conc)
+
+# Add selected company coordinates to buil_sf (WOOD)
+buil_sf$wood_company_lon <- wood_coords[nearest_wood, 1]
+buil_sf$wood_company_lat <- wood_coords[nearest_wood, 2]
+
+# Add selected company coordinates to buil_sf (CONCRETE)
+buil_sf$concrete_company_lon <- conc_coords[nearest_conc, 1]
+buil_sf$concrete_company_lat <- conc_coords[nearest_conc, 2]
 
 # Add company names corresponding to nearest selection
 buil_sf$company_wood <- yri_wood$Name[nearest_wood]
@@ -165,15 +181,19 @@ buil_sf$company_conc <- yri_conc$Name[nearest_conc]
 
 head(buil_sf)
 
-
+# =========
 #Statistics
+# =========
 
+# Overall distribution summaries
 summary(buil_sf$dist_wood)
 summary(buil_sf$dist_conc)
 
+# Mean distances (excluding NA values)
 mean(buil_sf$dist_wood, na.rm = TRUE)
 mean(buil_sf$dist_conc, na.rm = TRUE)
 
+# Quantiles
 quantile(buil_sf$dist_wood, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
 quantile(buil_sf$dist_conc, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
 
