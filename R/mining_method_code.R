@@ -30,9 +30,11 @@ names(buil_sf)
 head(buil_sf)
 buil_sf <- buil_sf %>%
   filter(kantavien_rakenteiden_rakennusaine == "Puu",
-         paaasiallinen_kayttotarkoitus == "Pientalo")
+         paaasiallinen_kayttotarkoitus == "Pientalo",
+         is.na(purkamispaivamaara)
+         )
 
-#head(buil_sf)
+head(buil_sf)
 
 
  ########## MI COEFFICIENTS ##############
@@ -92,18 +94,16 @@ buil_sf <- buil_sf |>
   filter(!is.na(MI_concrete))
 
 head(buil_sf$MI_concrete)
+head(buil_sf)
 
 
 
 
 # Visual inspection of spatial layers
-mapview(buil_sf, col.regions = "orange") +
-  mapview(yri_sf, col.regions = "red") +
-  mapview(roads, col.regions = "steelblue")
+#mapview(buil_sf, col.regions = "orange") +
+#  mapview(yri_sf, col.regions = "red") +
+#  mapview(roads, col.regions = "steelblue")
 
-# Extract coordinates as matrices (longitude, latitude) for dodgr
-buil_mat <- st_coordinates(buil_sf)
-yri_mat  <- st_coordinates(yri_sf)
 
 
 # Convert geometries to LINESTRING format (required for routing/network analysis)
@@ -117,18 +117,50 @@ roads$fclass[roads$fclass == "unknown"] <- "residential"
 # Build routing graph from street network using dodgr (weighted for motor vehicles)
 graph <- weight_streetnet(roads, wt_profile = "motorcar", type_col = "fclass")
 
+#Companies based on material
+yri_wood <- yri_sf %>% filter(wood == "yes")
+yri_conc <- yri_sf %>% filter(concrete == "yes")
+
+# Extract coordinates as matrices (longitude, latitude) for dodgr
+buil_mat <- st_coordinates(buil_sf)
+yri_wood_mat <- st_coordinates(yri_wood)
+yri_conc_mat <- st_coordinates(yri_conc)
 
 # Compute distance matrix [n_buildings x n_companies]
 # Shortest distances from building to company, based on the weighted network
-dmat <- dodgr_dists(graph, from = buil_mat, to = yri_mat)
-dmat[is.na(dmat)] <- Inf #Prevents missing NA rows
-summary(dmat)
-is.matrix(dmat)
+dmat_wood <- dodgr_dists(graph, from = buil_mat, to = yri_wood_mat)
+dmat_conc <- dodgr_dists(graph, from = buil_mat, to = yri_conc_mat)
+
+dmat_wood[is.na(dmat_wood)] <- Inf#Prevents missing NA rows
+dmat_conc[is.na(dmat_conc)] <- Inf
+
+summary(dmat_wood)
+
 
 
 # Find nearest company for each building based on minimum network distance
-nearest <- apply(dmat, 1, function(x) which.min(x))
-nearest <- unlist(nearest)
+nearest_wood <- apply(dmat_wood, 1, which.min)
+nearest_wood <- unlist(nearest_wood)
+
+nearest_conc <- apply(dmat_conc, 1, which.min)
+nearest_conc <- unlist(nearest_conc)
+
+#Merge nearest company name and distances into buil_sf
+
+buil_sf$dist_wood <- dmat_wood[
+  cbind(1:nrow(dmat_wood), nearest_wood)
+]
+
+buil_sf$dist_conc <- dmat_conc[
+  cbind(1:nrow(dmat_conc), nearest_conc)
+]
+
+buil_sf$company_wood <- yri_wood$Name[nearest_wood]
+buil_sf$company_conc <- yri_conc$Name[nearest_conc]
+
+head(buil_sf)
+names(buil_sf)
+
 
 #Statistics
 
