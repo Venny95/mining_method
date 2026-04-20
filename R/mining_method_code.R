@@ -126,19 +126,18 @@ buil_mat <- st_coordinates(buil_sf)
 yri_wood_mat <- st_coordinates(yri_wood)
 yri_conc_mat <- st_coordinates(yri_conc)
 
-# Compute distance matrix [n_buildings x n_companies]
-# Shortest distances from building to company, based on the weighted network
+# Compute shortest network distance matrix between buildings and companies
 dmat_wood <- dodgr_dists(graph, from = buil_mat, to = yri_wood_mat)
 dmat_conc <- dodgr_dists(graph, from = buil_mat, to = yri_conc_mat)
 
+# Replace missing values (NA) with Inf
+# NA indicates that no valid route exists between a building and a company.
 dmat_wood[is.na(dmat_wood)] <- Inf#Prevents missing NA rows
 dmat_conc[is.na(dmat_conc)] <- Inf
 
-summary(dmat_wood)
 
 
-
-# Find nearest company for each building based on minimum network distance
+# For each building (row), find the index of the closest company based on minimum network distance.
 nearest_wood <- apply(dmat_wood, 1, which.min)
 nearest_wood <- unlist(nearest_wood)
 
@@ -147,30 +146,34 @@ nearest_conc <- unlist(nearest_conc)
 
 #Merge nearest company name and distances into buil_sf
 
+# Extract distance to selected (nearest) wood company
 buil_sf$dist_wood <- dmat_wood[
   cbind(1:nrow(dmat_wood), nearest_wood)
 ]
 
+buil_sf$dist_wood[is.infinite(buil_sf$dist_wood)] <- NA # Convert infinite values (unreachable routes) to NA for clarity
+
+# Extract distance to selected (nearest) concrete company
 buil_sf$dist_conc <- dmat_conc[
   cbind(1:nrow(dmat_conc), nearest_conc)
 ]
+buil_sf$dist_conc[is.infinite(buil_sf$dist_conc)] <- NA # Convert infinite values to NA
 
+# Add company names corresponding to nearest selection
 buil_sf$company_wood <- yri_wood$Name[nearest_wood]
 buil_sf$company_conc <- yri_conc$Name[nearest_conc]
 
 head(buil_sf)
-names(buil_sf)
 
 
 #Statistics
 
-buil_sf$dist_nearest <- dmat[cbind(
-  seq_len(nrow(dmat)),
-  nearest
-)]
-buil_sf$dist_nearest[is.infinite(buil_sf$dist_nearest)] <- NA
+summary(buil_sf$dist_wood)
+summary(buil_sf$dist_conc)
 
-summary(buil_sf$dist_nearest)
-mean(buil_sf$dist_nearest, na.rm = TRUE)
-quantile(buil_sf$dist_nearest, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
-head(buil_sf)
+mean(buil_sf$dist_wood, na.rm = TRUE)
+mean(buil_sf$dist_conc, na.rm = TRUE)
+
+quantile(buil_sf$dist_wood, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
+quantile(buil_sf$dist_conc, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
+
