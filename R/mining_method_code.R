@@ -32,6 +32,32 @@ buil_sf <- buil_sf %>%
 
 #head(buil_sf)
 
+
+ ########## MI COEFFICIENTS ##############
+
+# Date on building decade
+# For MI COEFFICIENT a building decade is needed
+# #Filtering dates that are incorrect format (not YYY-MM-DD) or NA
+buil_sf <- buil_sf |>
+  filter(!is.na(valmistumispaivamaara) |
+  grepl("^\\d{4}-\\d{2}-\\d{2}$", valmistumispaivamaara))
+
+#Extracting the building decade (NAs untouched)
+
+buil_sf <- buil_sf |>
+  mutate(
+    decade = if_else(
+      is.na(valmistumispaivamaara),
+      NA_character_,
+      paste0(substr(valmistumispaivamaara, 1, 3), "0")
+    )
+  )
+
+head(buil_sf$decade, 50)
+
+
+
+
 # Visual inspection of spatial layers
 mapview(buil_sf, col.regions = "orange") +
   mapview(yri_sf, col.regions = "red") +
