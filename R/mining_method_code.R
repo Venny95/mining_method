@@ -41,25 +41,26 @@ head(buil_sf)
 
 # Date on building decade
 # For MI COEFFICIENT a building decade is needed
+
+#NOT NEEDED (later NAs will be filtered)?
 # #Filtering dates that are incorrect format (not YYY-MM-DD) or NA
-buil_sf <- buil_sf |>
-  filter(!is.na(valmistumispaivamaara) |
-  grepl("^\\d{4}-\\d{2}-\\d{2}$", valmistumispaivamaara))
+#buil_sf <- buil_sf |>
+#  filter(!is.na(valmistumispaivamaara) |
+#  grepl("^\\d{4}-\\d{2}-\\d{2}$", valmistumispaivamaara))
 
 #Extracting the building decade (NAs untouched)
 
 buil_sf <- buil_sf |>
   mutate(
     decade = if_else(
-      is.na(valmistumispaivamaara),
-      NA_character_,
-      paste0(substr(valmistumispaivamaara, 1, 3), "0")
+      grepl("^\\d{4}", valmistumispaivamaara),
+      as.numeric(substr(valmistumispaivamaara, 1, 3)) * 10,
+      NA_real_
     )
   )
 
-
-
 # MI COEFFICIENT for wood
+# gross floor area * MI (kg / m2)
 buil_sf <- buil_sf |>
   mutate(
     MI_wood = case_when(
@@ -79,6 +80,7 @@ head(buil_sf$MI_wood)
 
 
 # MI COEFFICIENT for concrete
+# gross floor area * MI (kg / m2)
 buil_sf <- buil_sf |>
   mutate(
     MI_concrete = case_when(
@@ -150,17 +152,16 @@ nearest_conc <- unlist(nearest_conc)
 ##====================================================
 
 # Extract distance to nearest wood company
-buil_sf$dist_wood <- dmat_wood[
-  cbind(1:nrow(dmat_wood), nearest_wood)
-]
+buil_sf$dist_wood_km <- (dmat_wood[
+  cbind(1:nrow(dmat_wood), nearest_wood)]) / 1000
 
-buil_sf$dist_wood[is.infinite(buil_sf$dist_wood)] <- NA # Convert infinite values (unreachable routes) to NA for clarity
+buil_sf$dist_wood_km[is.infinite(buil_sf$dist_wood_km)] <- NA # Convert infinite values (unreachable routes) to NA for clarity
 
 # Extract distance to nearest concrete company
-buil_sf$dist_conc <- dmat_conc[
-  cbind(1:nrow(dmat_conc), nearest_conc)
-]
-buil_sf$dist_conc[is.infinite(buil_sf$dist_conc)] <- NA # Convert infinite values to NA
+buil_sf$dist_conc_km <- (dmat_conc[
+  cbind(1:nrow(dmat_conc), nearest_conc)]) / 1000
+
+buil_sf$dist_conc_km[is.infinite(buil_sf$dist_conc_km)] <- NA # Convert infinite values to NA
 
 # Add company coordinates to buil_sf
 # Company coordinates
@@ -181,6 +182,29 @@ buil_sf$company_conc <- yri_conc$Name[nearest_conc]
 
 head(buil_sf)
 
+
+#===========================
+# CO2 emissions of transport
+# ==========================
+
+# material tonnes * km * coefficient by truck type (kg CO2e / t km) = xx kg CO2e
+# In the coefficient, full load drive from site and empty load drive back to the site is included
+# Urban and rural road types have different coefficients
+
+# Choose "maansiirtoauto (32 t), kantavuus 19t" -vehicle
+
+# Assume that the truck is 80% full when leaving the site and 0% full when coming back to the site
+# (Rakennuksen vähähiilisyyden arviointimenetelmä, Ympäristöministeriö)
+
+#For wood
+buil_sf$wood_emissions <- (buil_sf$MI_wood/1000) * buil_sf$dist_wood_km * 0.17925
+
+#For concrete
+buil_sf$conc_emissions <- (buil_sf$MI_concrete/1000) * buil_sf$dist_conc_km * 0.17925
+
+buil_sf$total_emissions <- buil_sf$wood_emissions + buil_sf$conc_emissions
+
+head(buil_sf)
 # =========
 #Statistics
 # =========
