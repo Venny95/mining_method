@@ -187,24 +187,51 @@ head(buil_sf)
 # CO2 emissions of transport
 # ==========================
 
-# material tonnes * km * coefficient by truck type (kg CO2e / t km) = xx kg CO2e
+# Formula: material tonnes * km * coefficient by truck type (kg CO2e / t km) = xx kg CO2e
 # In the coefficient, full load drive from site and empty load drive back to the site is included
-# Urban and rural road types have different coefficients
 
-# Choose "maansiirtoauto (32 t), kantavuus 19t" -vehicle
+# Load factor assumption (Source: Rakennuksen vähähiilisyyden arviointimenetelmä, Ympäristöministeriö):
+# - 80% load when departing from site
+# - 0% load when returning
+# -> 40% load for coefficient
 
-# Assume that the truck is 80% full when leaving the site and 0% full when coming back to the site
-# (Rakennuksen vähähiilisyyden arviointimenetelmä, Ympäristöministeriö)
+# - Urban and rural road types have different coefficients, urban coefficient used here
+# - Vehicle type: dump truck (32 t), payload capacity 19 t ("maansiirtoauto (32 t), kantavuus 19t")
 
-#For wood
+#For wood transportation
 buil_sf$wood_emissions <- (buil_sf$MI_wood/1000) * buil_sf$dist_wood_km * 0.17925
 
-#For concrete
+#For concrete transportation
 buil_sf$conc_emissions <- (buil_sf$MI_concrete/1000) * buil_sf$dist_conc_km * 0.17925
 
+# Total emissions
 buil_sf$total_emissions <- buil_sf$wood_emissions + buil_sf$conc_emissions
 
-head(buil_sf)
+# =================
+# Building polygons
+# =================
+
+# Goal is to attach calculated attributes from point features to building polygons for visualization
+# And filter to keep only polygons that contains a point, i.e. polygons representing wooden detached buildings
+
+#Read building polygons (OSM data)
+buil_polygons <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_building_polygons_OSM.gpkg")
+
+#Tranform to same CRS as point data
+buil_polygons <- st_transform(buil_polygons, 4326)
+
+# Add attributes from building points to polygons
+buil_polygons <- st_join(buil_polygons, buil_sf, join = st_intersects)
+
+# Keep only polygons that contains a point
+buil_polygons$n_points <- lengths(st_intersects(buil_polygons, buil_sf))
+buil_polygons <- buil_polygons %>% filter(n_points > 0)
+# OBS! Some buildings missed, no polygon (OSM data) on the site!
+
+# Remove excess attribute fields
+buil_polygons <- buil_polygons %>%
+  select(-n_points, -kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero)
+head(buil_polygons)
 # =========
 #Statistics
 # =========
