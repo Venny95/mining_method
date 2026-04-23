@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fi">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MapLibre testi</title>
+
+  <!-- MapLibre GL JS CSS -->
+  <link
+    href="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { width: 100%; height: 100%; }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <!-- MapLibre JS (kirjasto) -->
+  <script src="https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js"></script>
+  <!-- Oma karttakoodisi -->
+  <script src="./script.js"></script>
+</body>
+</html>
