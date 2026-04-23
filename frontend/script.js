@@ -12,21 +12,22 @@ const map = new maplibregl.Map({
 map.on('load', () => {
 
     //GeoJSON rakennukset
-    map.addSource('rakennukset_testi_json', {
+    map.addSource('buildings', {
         type: 'geojson',
-        data: 'rakennukset_testi_json.geojson'
+        data: 'data/buil_polygons.geojson'
     });
 
     map.addLayer({
-        id: 'rakennukset_testi_json-layer',
-        type: 'circle',
-        source: 'rakennukset_testi_json',
+        id: 'buildings-layer',
+        type: 'fill',
+        source: 'buildings',
         paint: {
             'circle-radius': 6,
             'circle-color': '#ff5500'
         }
     });
-    //GeoJSON tiet
+
+        //GeoJSON tiet
     map.addSource('tiet_testi_json', {
         type: 'geojson',
         data: 'tiet_testi_json.geojson'
