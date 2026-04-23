@@ -8,8 +8,9 @@
 .Rproj.user/
 
 #Data
-data/raw/
-data/processed/
+R/data/raw/
+R/data/processed/
+frontend/data
 
 #Jupyter
 .ipynb_checkpoints/
@@ -25,6 +26,3 @@ Thumbs.db
 *.qgz
 *.qgs
 *.qgd
-
-#Secrets
-.Renviron
