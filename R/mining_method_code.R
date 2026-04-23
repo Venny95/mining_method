@@ -25,15 +25,12 @@ roads <- st_transform(roads, 4326)
 
 #At the moment, the MI coefficients calculation method is for wooden detached buildings only
 #Filter buildings with one apartment and where structural material is wood and where building type is "pientalo"
-names(buil_sf)
-head(buil_sf)
 buil_sf <- buil_sf %>%
   filter(kantavien_rakenteiden_rakennusaine == "Puu",
          huoneistojen_lukumaara == 1,
          paaasiallinen_kayttotarkoitus == "Pientalo",
          is.na(purkamispaivamaara)
          )
-
 
 
  ########## MI COEFFICIENTS ##############
@@ -48,6 +45,7 @@ buil_sf <- buil_sf %>%
 #  grepl("^\\d{4}-\\d{2}-\\d{2}$", valmistumispaivamaara))
 
 #Extracting the building decade (NAs untouched)
+sum(is.na(buil_sf$valmistumispaivamaara))
 
 buil_sf <- buil_sf |>
   mutate(
@@ -57,6 +55,7 @@ buil_sf <- buil_sf |>
       NA_real_
     )
   )
+
 
 # MI COEFFICIENT for wood
 # gross floor area * MI (kg / m2)
@@ -71,8 +70,7 @@ buil_sf <- buil_sf |>
       decade == 1990 ~ kerrosala * 33,
       decade == 2000 ~ kerrosala * 53
     )
-  ) |>
-  filter(!is.na(MI_wood))
+  )
 
 head(buil_sf$MI_wood)
 
@@ -91,12 +89,7 @@ buil_sf <- buil_sf |>
       decade == 1990 ~ kerrosala * 361,
       decade == 2000 ~ kerrosala * 467
     )
-  ) |>
-  filter(!is.na(MI_concrete))
-
-head(buil_sf$MI_concrete)
-head(buil_sf)
-
+  )
 
 
 
@@ -133,7 +126,7 @@ dmat_conc <- dodgr_dists(graph, from = buil_mat, to = yri_conc_mat)
 
 # Replace missing values (NA) with Inf
 # NA indicates that no valid route exists between a building and a company.
-dmat_wood[is.na(dmat_wood)] <- Inf#Prevents missing NA rows
+dmat_wood[is.na(dmat_wood)] <- Inf #Prevents missing NA rows
 dmat_conc[is.na(dmat_conc)] <- Inf
 
 
@@ -231,19 +224,11 @@ buil_polygons <- buil_polygons %>% filter(n_points > 0)
 buil_polygons <- buil_polygons %>%
   select(-n_points, -kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero)
 head(buil_polygons)
+
+
 # =========
-#Statistics
+# Save the data
 # =========
 
-# Overall distribution summaries
-summary(buil_sf$dist_wood)
-summary(buil_sf$dist_conc)
-
-# Mean distances (excluding NA values)
-mean(buil_sf$dist_wood, na.rm = TRUE)
-mean(buil_sf$dist_conc, na.rm = TRUE)
-
-# Quantiles
-quantile(buil_sf$dist_wood, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
-quantile(buil_sf$dist_conc, c(0.5, 0.75, 0.9, 0.95), na.rm = TRUE)
+st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
 
