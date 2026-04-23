@@ -23,18 +23,17 @@ buil_sf <- st_transform(buil_sf, 4326)
 yri_sf  <- st_transform(yri_sf, 4326)
 roads <- st_transform(roads, 4326)
 
-#At the moment, the MI coefficients calculation method is for residential detached buildings only and for WOOD only
-#Filter detached houses from buildings where structural material is wood
-#OBS! "Pientalo" means slightly different than detached house.
+#At the moment, the MI coefficients calculation method is for wooden detached buildings only
+#Filter buildings with one apartment and where structural material is wood and where building type is "pientalo"
 names(buil_sf)
 head(buil_sf)
 buil_sf <- buil_sf %>%
   filter(kantavien_rakenteiden_rakennusaine == "Puu",
+         huoneistojen_lukumaara == 1,
          paaasiallinen_kayttotarkoitus == "Pientalo",
          is.na(purkamispaivamaara)
          )
 
-head(buil_sf)
 
 
  ########## MI COEFFICIENTS ##############
