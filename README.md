@@ -76,9 +76,13 @@ The analysis is further complemented with **project-specific data collected with
 
 ## STRUCTURE
 
-\-R\\: scripts
+\-R\\: R scripts
+\-R\\data\\raw\\: raw data
+\-R\\data\\processed\\: processed data
 
-\-data\\raw\\: raw data
+\-frontend\\: demo version frontend scripts
+\-frontend\\data\\: processed data for demo version
 
-\-data\\processed\\: processed data
+\-QGIS\\: QGIS project for data inspection
 
+\-.gitignore\\: untracked files
