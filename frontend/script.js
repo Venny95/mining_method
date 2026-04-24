@@ -42,7 +42,7 @@ map.on('load', () => {
 
     // Kun klikataan, näkyy pop up
     map.on('click', BUILDING_LAYER, (e) => {
-        const feature = e.features && e.features[0];                   // e.features sisältää kaikki featuret, joiden päällä klikkaus tapahtui, e.features[0] on ensimmäinen niistä
+        const feature = e.features && e.features[0];          // e.features sisältää kaikki featuret, joiden päällä klikkaus tapahtui, e.features[0] on ensimmäinen niistä
         if (!feature) return;                                 // Jos ei featurea, lopetetaan
 
         const props = feature.properties || {};
@@ -54,12 +54,28 @@ map.on('load', () => {
    
 
         // HTML-pop up:
+        
+        const popupFields = [
+            ["decade", "Building decade"],
+            ["MI_wood", "Wood material intensity"],
+            ["company_wood", "Wood waste processing facility"],
+            ["MI_concrete", "Concrete material intensity"],
+            ["company_conc", "Concrete waste processing facility"]
+        ];
+
         const html = `                                   
             <div style="min-width:180px">
                 <strong>Kohde</strong><br/>
-                 ${Object.entries(props)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join('<br/>')}
+                 ${
+                    popupFields
+                    .map(([key, label]) =>
+                    props[key] != null
+                    ? `<strong>${label}:</strong> ${props[key]}`
+                    : null
+                )
+                .filter(Boolean)
+                .join("<br/>")
+            }
             </div>
         `;
 
