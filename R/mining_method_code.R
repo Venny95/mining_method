@@ -8,20 +8,20 @@ library(mapview)
 # Read datasets directly from GeoPackage files as sf objects
 
 # Company dataset
-yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/yritys1.gpkg")
+yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/yritys1.gpkg")
 
 # Joensuu building stock dataset, RYHTI data
-buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/RYHTI_rakennuksen_Joensuun_asemakaava_alue.gpkg")
+buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/RYHTI_rakennuksen_Joensuun_asemakaava_alue.gpkg")
 
 # OpenStreetMap (OSM) road network dataset (downloaded from Geofabrik)
-roads <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/OSM_roads_rajattu2.gpkg")
+roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_rajattu2.gpkg")
 
 
 
 # Reproject all spatial datasets to WGS84 (EPSG:4326)
-buil_sf <- st_transform(buil_sf, 4326)
-yri_sf  <- st_transform(yri_sf, 4326)
-roads <- st_transform(roads, 4326)
+buil_sf <- st_transform(buil_sf, 3067)
+yri_sf  <- st_transform(yri_sf, 3067)
+roads <- st_transform(roads, 3067)
 
 #At the moment, the MI coefficients calculation method is for wooden detached buildings only
 #Filter buildings with one apartment and where structural material is wood and where building type is "pientalo"
@@ -206,29 +206,31 @@ buil_sf$total_emissions <- buil_sf$wood_emissions + buil_sf$conc_emissions
 # Goal is to attach calculated attributes from point features to building polygons for visualization
 # And filter to keep only polygons that contains a point, i.e. polygons representing wooden detached buildings
 
-#Read building polygons (OSM data)
-buil_polygons <- st_read("C:/Temp/codes/MINING_METHOD/data/processed/Joensuu_building_polygons_OSM.gpkg")
+# Read building polygons (OSM data)
+buil_polygons <- st_read(
+  "C:/Temp/codes/MINING_METHOD/R/data/processed/Joensuu_building_polygons_OSM.gpkg",) |>
+  st_transform(3067)
 
-#Tranform to same CRS as point data
-buil_polygons <- st_transform(buil_polygons, 4326)
-
-# Add attributes from building points to polygons
-buil_polygons <- st_join(buil_polygons, buil_sf, join = st_intersects)
-
-# Keep only polygons that contains a point
-buil_polygons$n_points <- lengths(st_intersects(buil_polygons, buil_sf))
-buil_polygons <- buil_polygons %>% filter(n_points > 0)
-# OBS! Some buildings missed, no polygon (OSM data) on the site!
+# Join points within 5 m of polygons,
+# keep only polygons that get at least one point
+buil_polygons <- buil_polygons |>
+  st_join(
+    buil_sf,
+    join = st_is_within_distance,
+    dist = 5,
+    left = FALSE
+  )
 
 # Remove excess attribute fields
 buil_polygons <- buil_polygons %>%
-  select(-n_points, -kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero)
-head(buil_polygons)
-
+  select(-kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero)
 
 # =========
 # Save the data
 # =========
+
+#Change CRS to 4326 for MapLibre
+buil_polygons <- st_transform(buil_polygons, 4326)
 
 st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
 
