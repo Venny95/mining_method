@@ -1,5 +1,3 @@
-// Vektoritiilet suoraan PostGIS:stä ovat tehokkaampi vaihtehto isojen aineistojen esittämiseen
-
 
 const map = new maplibregl.Map({
     container: 'map',
@@ -8,15 +6,16 @@ const map = new maplibregl.Map({
     zoom: 14
 });
 
-// Lisätään GeoJSOn-tiedostot
+// Load data and layers once the map has finished loading
 map.on('load', () => {
 
-    //GeoJSON rakennukset
+    // Load data and layers once the map has finished loading
     map.addSource('buildings', {
         type: 'geojson',
         data: 'data/buil_polygons.geojson'
     });
-
+    
+    // Add the building layer to the ma
     map.addLayer({
         id: 'buildings-layer',
         type: 'fill',
@@ -27,34 +26,38 @@ map.on('load', () => {
         }
     });
 
-    //Määritellään vakioita
+    // Define constants for reuse
     const BUILDING_LAYER = 'buildings-layer';
     const BUILDING_ID_FIELD = 'id';
 
-    //Kursori ku hiiri on kohteen päällä
-    map.on('mouseenter', BUILDING_LAYER, () => {       // Hiiren osoitin kädeksi kun se menee pisteen päälle
+    // Change cursor to pointer when hovering over a building
+    map.on('mouseenter', BUILDING_LAYER, () => {
         map.getCanvas().style.cursor = 'pointer';
     });
 
-    map.on('mouseleave', BUILDING_LAYER, () => {       // Kursori normaaliksi, kun menee pois pisteen päältä
+    // Reset cursor when leaving a building feature
+    map.on('mouseleave', BUILDING_LAYER, () => {
         map.getCanvas().style.cursor = '';
     });    
 
-    // Kun klikataan, näkyy pop up
+    // Show a popup when a building is clicked
     map.on('click', BUILDING_LAYER, (e) => {
-        const feature = e.features && e.features[0];          // e.features sisältää kaikki featuret, joiden päällä klikkaus tapahtui, e.features[0] on ensimmäinen niistä
-        if (!feature) return;                                 // Jos ei featurea, lopetetaan
+
+        // e.features contains all features at the click location;
+        // e.features[0] is the topmost feature
+        const feature = e.features && e.features[0];
+        if (!feature) return;  // Exit if no feature was clicked
 
         const props = feature.properties || {};
         const buildingId = props?.[BUILDING_ID_FIELD];
 
+        // Warn if the expected building ID attribute is missing
         if (buildingId == null) {
             console.warn(`Puuttuu kenttä ${BUILDING_ID_FIELD}`, props);
         }
    
 
-        // Pop up fields
-        
+        // Fields to be shown in the popup, with units and formatting
         const popupFields = [
         {
             key: "decade",
@@ -83,7 +86,7 @@ map.on('load', () => {
         ];
 
 
-        // HTML pop up:
+        // Build the popup HTML conten
 
         const html = `                                   
             <div style="min-width:180px">
@@ -106,6 +109,7 @@ map.on('load', () => {
             </div>
         `;
 
+        // Create and display the popup at the click locatio
         new maplibregl.Popup({ closeButton: true, closeOnClick: true})  // Luo pop up-ikkunan
             .setLngLat(e.lngLat)                                          //Pop upin sijainti klikatun pisteen kohdalle
             .setHTML(html)                                              // Asetetaan HTML sisältö pop uppiin
@@ -115,5 +119,5 @@ map.on('load', () => {
         });
     });
 
-
+// Add zoom and rotation controls to the map
 map.addControl(new maplibregl.NavigationControl());
