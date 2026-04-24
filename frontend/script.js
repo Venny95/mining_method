@@ -53,26 +53,53 @@ map.on('load', () => {
         }
    
 
-        // HTML-pop up:
+        // Pop up fields
         
         const popupFields = [
-            ["decade", "Building decade"],
-            ["MI_wood", "Wood material intensity"],
-            ["company_wood", "Wood waste processing facility"],
-            ["MI_concrete", "Concrete material intensity"],
-            ["company_conc", "Concrete waste processing facility"]
+        {
+            key: "decade",
+            label: "Building decade"
+        },
+        {
+            key: "MI_wood",
+            label: "Wood material intensity",
+            unit: "tonnes",
+            format: (v) => v.toFixed(1)
+        },
+        {
+            key: "company_wood",
+            label: "Wood waste processing facility"
+        },
+        {
+            key: "MI_concrete",
+            label: "Concrete material intensity",
+            unit: "tonnes",
+            format: (v) => v.toFixed(1)
+        },
+        {
+            key: "company_conc",
+            label: "Concrete waste processing facility"
+        }
         ];
+
+
+        // HTML pop up:
 
         const html = `                                   
             <div style="min-width:180px">
                 <strong>Kohde</strong><br/>
                  ${
                     popupFields
-                    .map(([key, label]) =>
-                    props[key] != null
-                    ? `<strong>${label}:</strong> ${props[key]}`
-                    : null
-                )
+                    .map(({ key, label, unit, format }) => {
+                        const value = props[key];
+                        if (value == null) return null;
+
+                        const formattedValue = format
+                        ? format(Number(value))
+                        : value;
+
+                    return `<strong>${label}:</strong> ${formattedValue}${unit ? " " + unit : ""}`;
+                })
                 .filter(Boolean)
                 .join("<br/>")
             }
