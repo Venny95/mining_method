@@ -1,5 +1,3 @@
-// Vektoritiilet suoraan PostGIS:stä ovat tehokkaampi vaihtehto isojen aineistojen esittämiseen
-
 
 const map = new maplibregl.Map({
     container: 'map',
@@ -8,97 +6,118 @@ const map = new maplibregl.Map({
     zoom: 14
 });
 
-// Lisätään GeoJSOn-tiedostot
+// Load data and layers once the map has finished loading
 map.on('load', () => {
 
-    //GeoJSON rakennukset
+    // Load data and layers once the map has finished loading
     map.addSource('buildings', {
         type: 'geojson',
         data: 'data/buil_polygons.geojson'
     });
-
+    
+    // Add the building layer to the ma
     map.addLayer({
         id: 'buildings-layer',
         type: 'fill',
         source: 'buildings',
         paint: {
-            'circle-radius': 6,
-            'circle-color': '#ff5500'
+            'fill-color': '#ff5500',
+            'fill-opacity': 0.6
         }
     });
 
-        //GeoJSON tiet
-    map.addSource('tiet_testi_json', {
-        type: 'geojson',
-        data: 'tiet_testi_json.geojson'
-    });
+    // Define constants for reuse
+    const BUILDING_LAYER = 'buildings-layer';
+    const BUILDING_ID_FIELD = 'id';
 
-    map.addLayer({
-        id: 'tiet_testi_json-layer',
-        type: 'line',
-        source: 'tiet_testi_json',
-        paint: {
-            'line-color': '#0077ff',
-            'line-width': 3
-        }
-    });
-
-    //Piilotetaan viivat
-    map.setLayoutProperty('tiet_testi_json-layer', 'visibility', 'none')
-    //Nollafiltteri
-    map.setFilter('tiet_testi_json-layer', ['==', ['literal', 1], 0]);
-
-    //Määritellään vakioita
-    const POINT_LAYER = 'rakennukset_testi_json-layer';
-    const LINE_LAYER = 'tiet_testi_json-layer';
-    
-    const POINT_ID_FIELD = 'id';
-    const LINE_JOIN_FIELD = 'buil_id';
-
-    //Kursori ku hiiri on pisteen päällä
-    map.on('mouseenter', POINT_LAYER, () => {       // Hiiren osoitin kädeksi kun se menee pisteen päälle
+    // Change cursor to pointer when hovering over a building
+    map.on('mouseenter', BUILDING_LAYER, () => {
         map.getCanvas().style.cursor = 'pointer';
     });
 
-    map.on('mouseleave', POINT_LAYER, () => {       // Kursori normaaliksi, kun menee pois pisteen päältä
+    // Reset cursor when leaving a building feature
+    map.on('mouseleave', BUILDING_LAYER, () => {
         map.getCanvas().style.cursor = '';
     });    
 
-    // Kun klikataan pistettä, näkyy pop up ja viivat
-    map.on('click', POINT_LAYER, (e) => {
-        const f = e.features && e.features[0];                   // e.features sisältää kaikki featuret, joiden päällä klikkaus tapahtui, e.features[0] on ensimmäinen niistä
-        if (!f) return;                                 // Jos ei featurea, lopetetaan
+    // Show a popup when a building is clicked
+    map.on('click', BUILDING_LAYER, (e) => {
 
-        const coords = f.geometry.coordinates.slice();  // Koordinaatit kertovat, mihin pop up avautuu. Slice() kopioi taulukon muistiin.
-        const props = f.properties || {};               //GeoJSONin properties-osio sisältää attribuutit. Jos properties puuttuu, annetaan tyhjä objekti.
+        // e.features contains all features at the click location;
+        // e.features[0] is the topmost feature
+        const feature = e.features && e.features[0];
+        if (!feature) return;  // Exit if no feature was clicked
 
-        const idRak = f.properties?.[POINT_ID_FIELD];
-        if (idRak == null) {
-            console.warn(`Puuttuu kenttä ${POINT_ID_FIELD} pisteessä`, props);
-        }        
+        const props = feature.properties || {};
+        const buildingId = props?.[BUILDING_ID_FIELD];
 
-        // HTML-pop up:
+        // Warn if the expected building ID attribute is missing
+        if (buildingId == null) {
+            console.warn(`Puuttuu kenttä ${BUILDING_ID_FIELD}`, props);
+        }
+   
+
+        // Fields to be shown in the popup, with units and formatting
+        const popupFields = [
+        {
+            key: "decade",
+            label: "Building decade"
+        },
+        {
+            key: "MI_wood",
+            label: "Wood material intensity",
+            unit: "tonnes",
+            format: (v) => v.toFixed(1)
+        },
+        {
+            key: "company_wood",
+            label: "Wood waste processing facility"
+        },
+        {
+            key: "MI_concrete",
+            label: "Concrete material intensity",
+            unit: "tonnes",
+            format: (v) => v.toFixed(1)
+        },
+        {
+            key: "company_conc",
+            label: "Concrete waste processing facility"
+        }
+        ];
+
+
+        // Build the popup HTML conten
+
         const html = `                                   
             <div style="min-width:180px">
                 <strong>Kohde</strong><br/>
-                 ${Object.entries(props)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join('<br/>')}
+                 ${
+                    popupFields
+                    .map(({ key, label, unit, format }) => {
+                        const value = props[key];
+                        if (value == null) return null;
+
+                        const formattedValue = format
+                        ? format(Number(value))
+                        : value;
+
+                    return `<strong>${label}:</strong> ${formattedValue}${unit ? " " + unit : ""}`;
+                })
+                .filter(Boolean)
+                .join("<br/>")
+            }
             </div>
         `;
 
+        // Create and display the popup at the click locatio
         new maplibregl.Popup({ closeButton: true, closeOnClick: true})  // Luo pop up-ikkunan
-            .setLngLat(coords)                                          //Pop upin sijainti klikatun pisteen kohdalle
+            .setLngLat(e.lngLat)                                          //Pop upin sijainti klikatun pisteen kohdalle
             .setHTML(html)                                              // Asetetaan HTML sisältö pop uppiin
             .addTo(map);                                                // Pop up näkyviin kartalle
 
-        //filtteri, joka näyttää viivat joiden LINE_JOIN_FIELD == idRak
-        const filter = ['==', ['to-string', ['get', LINE_JOIN_FIELD]], String(idRak)];
-        map.setFilter(LINE_LAYER, filter);
-        map.setLayoutProperty(LINE_LAYER, 'visibility', 'visible');
 
-        })
-    })
+        });
+    });
 
-
+// Add zoom and rotation controls to the map
 map.addControl(new maplibregl.NavigationControl());
