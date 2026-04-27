@@ -230,5 +230,5 @@ head(buil_polygons)
 # Save the data
 # =========
 
-st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
+#st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
 
