@@ -60,6 +60,16 @@ buil_sf <- buil_sf |>
     )
   )
 
+#Extracting the building decade (NAs untouched)
+buil_sf <- buil_sf |>
+  mutate(
+    year = if_else(
+      grepl("^\\d{4}", valmistumispaivamaara),
+      as.numeric(substr(valmistumispaivamaara, 1, 4)),
+      NA_real_
+    )
+  )
+
 
 # MI COEFFICIENT for wood
 # gross floor area * MI (kg / m2)
