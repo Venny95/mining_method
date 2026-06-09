@@ -8,13 +8,13 @@ library(mapview)
 # Read datasets directly from GeoPackage files as sf objects
 
 # Company dataset
-yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/yritys1.gpkg")
+yri_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/existing_facilities_joensuu.gpkg")
 
 # Joensuu building stock dataset, RYHTI data
-buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/RYHTI_rakennuksen_Joensuun_asemakaava_alue.gpkg")
+buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/ryhti_buildings_joensuu.gpkg")
 
 # OpenStreetMap (OSM) road network dataset (downloaded from Geofabrik)
-roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_rajattu2.gpkg")
+roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_joensuu_small.gpkg")
 
 
 
@@ -22,19 +22,6 @@ roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_rajattu
 buil_sf <- st_transform(buil_sf, 3067)
 yri_sf  <- st_transform(yri_sf, 3067)
 roads <- st_transform(roads, 3067)
-
-#At the moment, the MI coefficients calculation method is for wooden detached buildings only
-#Filter buildings:
-# -where structural material is wood
-# -Where number of apartments is 1 or 2. This is because there is a lot of houses that type is more like detached house but there is two apartments
-# -where type is "Pientalo" or "Kerrostalo". Kerrostalo is here because there is a lot of errors in data where detached house has mistake in type.
-
-buil_sf <- buil_sf %>%
-  filter(kantavien_rakenteiden_rakennusaine == "Puu",
-         huoneistojen_lukumaara == 1 | huoneistojen_lukumaara == 2,
-         paaasiallinen_kayttotarkoitus == "Pientalo"| paaasiallinen_kayttotarkoitus == "Kerrostalo",
-         is.na(purkamispaivamaara)
-         )
 
 
  ########## MI COEFFICIENTS ##############
