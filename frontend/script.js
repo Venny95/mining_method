@@ -60,29 +60,29 @@ map.on('load', () => {
         // Fields to be shown in the popup, with units and formatting
         const popupFields = [
         {
-            key: "decade",
-            label: "Building decade"
+            key: "year",
+            label: "Building year"
         },
-        {
-            key: "MI_wood",
-            label: "Wood material intensity",
-            unit: "tonnes",
-            format: (v) => v.toFixed(1)
-        },
+     //   {
+     //       key: "MI_wood",
+     //       label: "Wood material intensity",
+     //       unit: "tonnes",
+     //       format: (v) => v.toFixed(1)
+     //   },
         {
             key: "company_wood",
             label: "Wood waste processing facility"
         },
-        {
-            key: "MI_concrete",
-            label: "Concrete material intensity",
-            unit: "tonnes",
-            format: (v) => v.toFixed(1)
-        },
+     //   {
+     //       key: "MI_concrete",
+     //       label: "Concrete material intensity",
+     //       unit: "tonnes",
+     //       format: (v) => v.toFixed(1)
+     //   },
         {
             key: "company_conc",
             label: "Concrete waste processing facility"
-        }
+        },
         ];
 
 
