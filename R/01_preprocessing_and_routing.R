@@ -20,7 +20,7 @@ buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/ryhti_buildings
 # OpenStreetMap (OSM) road network dataset (downloaded from Geofabrik)
 roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_joensuu_small.gpkg")
 
-# Reproject all spatial datasets to WGS84 (EPSG:4326)
+# Reproject all spatial datasets to EPSG:3067
 buil_sf <- st_transform(buil_sf, 3067)
 yri_sf  <- st_transform(yri_sf, 3067)
 roads <- st_transform(roads, 3067)
@@ -44,7 +44,7 @@ buil_sf <- buil_sf |>
     )
   )
 
-#Extracting the building decade (NAs untouched)
+#Extracting the building year (NAs untouched)
 buil_sf <- buil_sf |>
   mutate(
     year = if_else(
@@ -95,7 +95,7 @@ buil_sf <- buil_sf |>
 
 
 # =========================
-# 3.ROUTING
+# 4.ROUTING
 # =========================
 
 # Convert geometries to LINESTRING format (required for routing/network analysis)
@@ -122,14 +122,14 @@ table (graph_main$component)
 yri_wood <- yri_sf %>% filter(wood == "yes")
 yri_conc <- yri_sf %>% filter(concrete == "yes")
 
-# Extract coordinates as matrices (longitude, latitude) for dodgr
+## Extract point coordinates as X/Y matrices for dodgr
 buil_mat <- st_coordinates(buil_sf)
 yri_wood_mat <- st_coordinates(yri_wood)
 yri_conc_mat <- st_coordinates(yri_conc)
 
 # Compute shortest network distance matrix between buildings and companies
-dmat_wood <- dodgr_dists(graph, from = buil_mat, to = yri_wood_mat)
-dmat_conc <- dodgr_dists(graph, from = buil_mat, to = yri_conc_mat)
+dmat_wood <- dodgr_dists(graph_main, from = buil_mat, to = yri_wood_mat)
+dmat_conc <- dodgr_dists(graph_main, from = buil_mat, to = yri_conc_mat)
 
 dim (dmat_wood); range (dmat_wood, na.rm = TRUE)
 dim (dmat_conc); range (dmat_conc, na.rm = TRUE)
@@ -143,28 +143,40 @@ dmat_wood[is.na(dmat_wood)] <- Inf #Prevents missing NA rows
 dmat_conc[is.na(dmat_conc)] <- Inf
 
 # For each building (row), find the index of the closest company based on minimum network distance.
-nearest_wood <- apply(dmat_wood, 1, which.min)
-nearest_wood <- unlist(nearest_wood)
+# Check that finite values exist and the building is connected to the graph, otherwise no result
+nearest_wood <- apply(dmat_wood, 1, function(x) {
+  if (all(is.infinite(x))) NA_integer_ else which.min(x)
+})
+#nearest_wood <- unlist(nearest_wood) EITARVITA?
 
-nearest_conc <- apply(dmat_conc, 1, which.min)
-nearest_conc <- unlist(nearest_conc)
+
+nearest_conc <- apply(dmat_conc, 1, function(x) {
+  if (all(is.infinite(x))) NA_integer_ else which.min(x)
+})
+#nearest_conc <- unlist(nearest_conc) EITARVITA?
 
 
 #=====================================================
-# 4.DISTANCES
+# 5.DISTANCES
 ##====================================================
 
-# Extract distance to nearest wood company
-buil_sf$dist_wood_km <- (dmat_wood[
-  cbind(1:nrow(dmat_wood), nearest_wood)]) / 1000
+#Prepare column for distances
+buil_sf$dist_wood_km <- NA_real_
+valid_wood <- !is.na(nearest_wood)
 
-buil_sf$dist_wood_km[is.infinite(buil_sf$dist_wood_km)] <- NA # Convert infinite values (unreachable routes) to NA for clarity
+# Extract distance to nearest wood company
+buil_sf$dist_wood_km[valid_wood] <- dmat_wood[
+  cbind(which(valid_wood), nearest_wood[valid_wood])
+] / 1000
+
+#Prepare column for distances
+buil_sf$dist_conc_km <- NA_real_
+valid_conc <- !is.na(nearest_conc)
 
 # Extract distance to nearest concrete company
-buil_sf$dist_conc_km <- (dmat_conc[
-  cbind(1:nrow(dmat_conc), nearest_conc)]) / 1000
-
-buil_sf$dist_conc_km[is.infinite(buil_sf$dist_conc_km)] <- NA # Convert infinite values to NA
+buil_sf$dist_conc_km[valid_conc] <- dmat_conc[
+  cbind(which(valid_conc), nearest_conc[valid_conc])
+] / 1000
 
 # Add company coordinates to buil_sf
 # Company coordinates
@@ -172,12 +184,12 @@ wood_coords <- st_coordinates(yri_wood)
 conc_coords <- st_coordinates(yri_conc)
 
 # Add selected company coordinates to buil_sf (WOOD)
-buil_sf$wood_company_lon <- wood_coords[nearest_wood, 1]
-buil_sf$wood_company_lat <- wood_coords[nearest_wood, 2]
+buil_sf$wood_company_x <- wood_coords[nearest_wood, 1]
+buil_sf$wood_company_y <- wood_coords[nearest_wood, 2]
 
 # Add selected company coordinates to buil_sf (CONCRETE)
-buil_sf$concrete_company_lon <- conc_coords[nearest_conc, 1]
-buil_sf$concrete_company_lat <- conc_coords[nearest_conc, 2]
+buil_sf$concrete_company_x <- conc_coords[nearest_conc, 1]
+buil_sf$concrete_company_y <- conc_coords[nearest_conc, 2]
 
 # Add company names corresponding to nearest selection
 buil_sf$company_wood <- yri_wood$Name[nearest_wood]
@@ -188,8 +200,23 @@ head(buil_sf)
 table(buil_sf$company_wood, useNA = "ifany")
 table(buil_sf$company_conc, useNA = "ifany")
 
+
+names(graph_main)
+summary(graph_main$d)
+summary(graph_main$d_weighted)
+range(graph_main$d, na.rm = TRUE)
+range(graph_main$d_weighted, na.rm = TRUE)
+
+st_crs(roads)
+st_bbox(roads)
+st_crs(buil_sf)
+st_bbox(buil_sf)
+
+st_crs(yri_sf)
+st_bbox(yri_sf)
+
 #===========================
-# 5.CO2 EMISSIONS
+# 6.CO2 EMISSIONS
 # ==========================
 
 # Formula: material tonnes * km * coefficient by truck type (kg CO2e / t km) = xx kg CO2e
@@ -217,7 +244,7 @@ summary(buil_sf$dist_conc_km, buil_sf$dist_wood_km)
 #st_write(buil_sf, "C:/Temp/codes/MINING_METHOD/R/data/processed/buil_points_processed_joensuu.gpkg", delete_dsn = TRUE)
 
 # =================
-# 6.BUILDING POLYGONS
+# 7.BUILDING POLYGONS
 # =================
 
 # Goal is to attach calculated attributes from point features to building polygons for visualization
@@ -243,7 +270,7 @@ buil_polygons <- buil_polygons %>%
   select(-kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero)
 
 # =========
-# 7.SAVE THE DATA
+# 8.SAVE THE DATA
 # =========
 
 #Change CRS to 4326 for MapLibre
