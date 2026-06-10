@@ -19,11 +19,13 @@ roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_joensuu
 
 # Joensuu building stock dataset, RYHTI data
 buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/ryhti_buildings_joensuu.gpkg")
+#Remove demolished buildings
+buil_sf <- buil_sf %>%
+  filter(is.na(purkamispaivamaara))
 # Remove excess attribute fields
 buil_sf <- buil_sf %>%
   select(-kulttuurihistoriallinen_merkittavyys, -suojeltu, -purkamispaivamaara, -kuntanumero,
          -lammitystapa, -lammitysenergian_lahde, -esteeton, -aanestysaluenumero)
-#POISTA KOHTEET JOISSA PURKAMISPAIVAMAARA != NA
 
 
 # Reproject all spatial datasets to EPSG:4326
@@ -299,15 +301,15 @@ buil_sf <- buil_sf |>
 # - Vehicle type: dump truck (32 t), payload capacity 19 t ("maansiirtoauto (32 t), kantavuus 19t")
 
 #For wood transportation
-buil_sf$wood_emissions <- (buil_sf$MI_wood/1000) * buil_sf$dist_wood_km * 0.17925
+buil_sf$wood_emissions_kgco2e <- (buil_sf$MI_wood/1000) * buil_sf$dist_wood_km * 0.17925
 
 #For concrete transportation
-buil_sf$conc_emissions <- (buil_sf$MI_concrete/1000) * buil_sf$dist_conc_km * 0.17925
+buil_sf$conc_emissions_kgco2e <- (buil_sf$MI_concrete/1000) * buil_sf$dist_conc_km * 0.17925
 
 # Total emissions
-buil_sf$total_emissions <- buil_sf$wood_emissions + buil_sf$conc_emissions
+buil_sf$total_emissions_kgco2e <- buil_sf$wood_emissions_kgco2e + buil_sf$conc_emissions_kgco2e
 
-summary(buil_sf$total_emissions)
+summary(buil_sf$total_emissions_kgco2e)
 #Save point buildings for location-allocation analysis as geopackage
 #st_write(buil_sf, "C:/Temp/codes/MINING_METHOD/R/data/processed/buil_points_processed_joensuu.gpkg", delete_dsn = TRUE)
 
@@ -318,10 +320,15 @@ summary(buil_sf$total_emissions)
 # Goal is to attach calculated attributes from point features to building polygons for visualization
 # And filter to keep only polygons that contains a point, i.e. polygons representing wooden detached buildings
 
+# When converting buildings to polygons, about 1,500 features are lost.
+# These are mostly small buildings like yard structures.
+# This could be documented by showing what was left out
+# and explaining that they are not very important for the analysis.
+
 # Read building polygons (OSM data)
 buil_polygons <- st_read(
   "C:/Temp/codes/MINING_METHOD/R/data/processed/Joensuu_building_polygons_OSM.gpkg",) |>
-  st_transform(3067)
+  st_transform(4326)
 
 # Join points within 5 m of polygons,
 # keep only polygons that get at least one point
@@ -334,12 +341,11 @@ buil_polygons <- buil_polygons |>
   )
 
 
-
 # =========
 # 8.SAVE THE DATA
 # =========
 
 #Change CRS to 4326 for MapLibre
-#buil_polygons <- st_transform(buil_polygons, 4326)
+buil_polygons <- st_transform(buil_polygons, 4326)
 
-#st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
+st_write(buil_polygons, "C:/Temp/codes/MINING_METHOD/frontend/data/buil_polygons.geojson", delete_dsn = TRUE)
