@@ -1,6 +1,6 @@
 **This README file is a work in progress and will be updated continuously as development proceeds.**
 
-# OVERVIEW
+# OVERVIEW: URBAN MATERIAL MINING METHOD
 
 This repository contains the **R**-based analytical workflow for the Urban Material Mining Method developed within the **EU-MAT: Effective Urban Material Mining in Cities project**.
 
@@ -99,9 +99,10 @@ Data availability and completeness vary between datasets and countries. Therefor
 
 ## REPOSITORY STRUCTURE
 
+```text
 MINING_METHOD/
 ├── R/
-│   ├── 01_01_prepare_buuildings.R
+│   ├── 01_prepare_buildings.R
 │   ├── 02_prepare_network.R
 │   ├── 03_buildings_accessibility.R
 │   ├── 04_grid_clusters.R
@@ -111,10 +112,12 @@ MINING_METHOD/
 │       ├── raw/
 │       └── processed/
 ├── frontend/
-│   └── index.html
-│   └── script.js
+│   ├── index.html
+│   ├── script.js
 │   └── style.css
 ├── README.md
+└── .gitignore
+```
 
 
 ## MAIN R PACKAGES
