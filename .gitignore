@@ -27,3 +27,6 @@ Thumbs.db
 *.qgz
 *.qgs
 *.qgd
+
+# Archive files
+R/archive
