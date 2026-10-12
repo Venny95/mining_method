@@ -1,43 +1,74 @@
 **This README file is a work in progress and will be updated continuously as development proceeds.**
 
-# URBAN MATERIAL MINING METHOD
+# OVERVIEW
 
-This repository contains scripts supporting the development of an **Urban Material Mining Method**.
+This repository contains the **R**-based analytical workflow for the Urban Material Mining Method developed within the **EU-MAT: Effective Urban Material Mining in Cities project**.
 
-The method is developed within the **EU-MAT: Effective Urban Material Mining in Cities** project as part of research, development, and innovation (RDI) activities. Karelia University of Applied Sciences acts as the responsible project partner for the methodological development. The project takes place 1.9.2025 - 31.8.2028.
+The method supports the identification and spatial assessment of materials embedded in the existing building stock. It combines building-level material stock estimation, spatial aggregation, material concentration analysis and network-based accessibility analysis.
 
-The Urban Material Mining method is initially developed for **Joensuu, Finland**. As the project progresses, the method will be expanded to Skelleftea, Sweden, and Sortland, Norway.
+The current workflow focuses on concrete and wood. The method is initially developed and tested using building stock data for **Joensuu, Finland**. Its transferability to other municipal and national data contexts will be assessed during the project.
 
-## WORKFLOW AND FUTURE DEVELOPMENT
+The EU-MAT project is implemented from 1 September 2025 to 31 August 2028. Karelia University of Applied Sciences is responsible for the spatial development of the material mining method in cooperation with the project partners.
 
-### Material mining method
+## METHODOLOGICAL FRAMEWORK
 
-The material mining method is implemented using **R**, which is used for data processing, analysis, and result generation.
+The method distinguishes between three related dimensions of urban mining potential:
 
-#### Material intensity calculations
-Material intensities for wood and concrete material are calculated at the individual building level using material intensity (MI) coefficients developed by Aalto University (see the *Material Intensity (MI) Calculation* section below for details).
+1. **Material availability**: The estimated quantity of material embedded in the building stock.
+2. **Spatial concentration**: The extent to which material stocks are concentrated within spatially connected areas.
+3. **Accessibility**: The network-based distance from material concentrations to potential recovery, processing or reuse locations.
 
-#### Proximity and Routing Analysis
-**Proximity analysis** for the transportation of demolition materials is conducted using the `dodgr` R package. Routing calculations are based on road network (see the *Data* section for details) distances and are weighted to favour routes suitable for motor vehicle traffic, ensuring realistic transportation paths for heavy vehicles.
+The analytical workflow is:
 
-#### Transport Emissions Calculation
-**Transport-related CO2 emissions** are calculated using a standard tonne-kilometre approach, which is widely applied in international greenhouse gas accounting frameworks such as the GHG Protocol and IPCC guidelines.
+Building stock data
+    ↓
+Building-level material stock estimation
+    ↓
+Spatial aggregation
+    ↓
+Material concentration and cluster analysis
+    ↓
+Network-based accessibility analysis
+    ↓
+Planning-oriented interpretation
 
-Emissions are calculated as:
-**E = m x d x EF**
-where:
-- **E** = transport emissions (kg CO2e)  
-- **m** = transported mass (tonnes)  
-- **d** = transport distance (km)  
-- **EF** = emission factor (kg CO2e / tonne-km)
+The current results describe estimated material stocks embedded in the existing building stock. They should not be interpreted directly as recoverable material flows unless information about demolition timing, material condition, technical recoverability and other relevant constraints is available.
 
-The emission factor is derived from the Finnish national emissions database **CO2data.fi**.
+## CURRENT WORKFLOW
 
-The transport emissions calculations are based on the following assumptions:
-- The emission factor represents a heavy-duty earthmoving truck (*maansiirtoauto*) with the gross vehicle weight of 32 tonnes and payload capacity of 19 tonnes.
-- The transport consists of an 80% loaded trip from the demolition site.
-- The vehicle returns to the site as an empty return trip.
-- All transportation is assumed to take place in an urban environment.
+The original analysis has been divided into six numbered R scripts. The scripts form a sequential workflow and should be run in numerical order.
+
+**01: Building data and material stock preparation**
+*01_prepare_buildings.R* prepares the building stock data and calculates preliminary building-level estimates of concrete and wood stocks using MI coefficients.
+
+**02: Road-network preparation**
+*02_prepare_network.R* prepares and weights the OpenStreetMap road network for routing and accessibility analysis.
+
+**03: Building-level accessibility**
+*03_buildings_accessibility.R* calculates the network distance from each building to the nearest reachable facility accepting wood or concrete.
+
+**04: Spatial aggregation and material clusters**
+*04_grid_clusters.R* aggregates building-level material estimates into spatial units and identifies local concentrations of concrete and wood. Spatially connected areas are combined into material clusters.
+
+**05: Cluster-level accessibility**
+*05_cluster_accessibility.R* is planned to define representative origins for material clusters and calculate routes to relevant material-specific facilities.
+
+**06: Export results**
+*06_export_results* will prepare selected analytical outputs for further analysis, mapping and visualisation. Its content will be specified as the workflow develops.
+
+#### Material intensity (MI) calculation
+Material intensity coefficients are used to estimate concrete and wood quantities at the building level. The development of the material intensity methodology is led by **Aalto University** within the EU-MAT project.
+
+A preliminary foundation for the approach is presented in:
+Nasiri, F., Kaasalainen, T., Hughes, M. (2023).  
+*Estimating the material intensity of wooden residential houses in Finland*.  
+Resources, Conservation and Recycling, Volume 198, 107142.  
+https://doi.org/10.1016/j.resconrec.2023.107142
+
+Further development of the MI coefficients method is ongoing, with the aim of extending it to be applicable to a broader range of building types across the building stock. As the EU-MAT project progresses, an updated and more comprehensive MI coefficients method will be integrated into the Urban Material Mining Method.
+
+#### Demolition curve
+The ongoing development of the demolition curve provides information about demolition timing. The development is led by **Aalto University** within the EU-MAT project.
 
 ### Demo version
 
@@ -50,39 +81,62 @@ The MapLibre-based web interface will allow the user to select a building of int
 - The map view will display the calculated routes visually.
 - A pop-up window will present building-specific results, including:
   - estimated quantities of materials (in tonnes),
-  - transport distance (kilometres),
-  - CO2 related to material transport.
-
-### Material intensity (MI) calculation
-
-The development of material intensity (MI) calculation is led by **Aalto University**, a project partner in the EU-MAT project.
-
-A preliminary version of the method already exists and is presented in the following scientific publication:
-Nasiri, F., Kaasalainen, T., Hughes, M. (2023).  
-*Estimating the material intensity of wooden residential houses in Finland*.  
-Resources, Conservation and Recycling, Volume 198, 107142.  
-https://doi.org/10.1016/j.resconrec.2023.107142
-
-At the current stage of development, the Urban Material Mining Method utilises this MI coefficients approach as its basis for material quantity estimation. Further development of the MI coefficients method is ongoing, with the aim of extending it to be applicable to a broader range of building types across the building stock. As the EU-MAT project progresses, an updated and more comprehensive MI coefficients method will be integrated into the Urban Material Mining Method.
+  - transport distance (kilometres)
 
 ## DATA
 
-The primary input dataset for the method is the **Finnish Building Stock Data (RYHTI)**, which provides information on buildings and supports the assessment of materials embedded in the existing building stock.
+#### Building stock data
+The Finnish case application uses building information obtained from the **Finnish Building Stock Data (RYHTI)**. The data provide building locations and attributes used in MI estimation.
+The source data may include information such as:
 
-In addition, the method utilises **OpenStreetMap (OSM) road network data** to support proximity analysis related to the transport of demolition materials.
+Data availability and completeness vary between datasets and countries. Therefore, the method may require harmonisation, alternative assumptions or a reduced analytical scope when applied outside the Finnish case.
 
-The analysis is further complemented with **project-specific data collected within the EU-MAT project**, describing the locations of facilities for further processing of demolition materials.
+#### Road-network data
+**OpenStreetMap (OSM) road network data** is used for network preparation, routing and accessibility analysis.
+
+#### Recovery, processing and reuse locations
+**Project-specific facility data** are collected within the EU-MAT project. The datasets describe the locations of facilities that process demolition materials and the material fractions accepted by each facility. These data are used to identify potential destinations for recovered materials. Concrete and wood are analysed separately because the relevant facility networks may differ between materials.
+
+## REPOSITORY STRUCTURE
+
+MINING_METHOD/
+├── R/
+│   ├── 01_01_prepare_buuildings.R
+│   ├── 02_prepare_network.R
+│   ├── 03_buildings_accessibility.R
+│   ├── 04_grid_clusters.R
+│   ├── 05_cluster_accessibility.R
+│   ├── 06_export_results.R
+│   └── data/
+│       ├── raw/
+│       └── processed/
+├── frontend/
+│   └── index.html
+│   └── script.js
+│   └── style.css
+├── README.md
 
 
-## STRUCTURE
+## MAIN R PACKAGES
+The workflow currently uses packages including:
+- sf for vector spatial data;
+- dplyr for data processing;
+- terra for rasterisation and focal calculations;
+- igraph for identifying connected grid-cell clusters; and
+- dodgr for road-network preparation and routing.
 
-\-R\\: R scripts
-\-R\\data\\raw\\: raw data
-\-R\\data\\processed\\: processed data
 
-\-frontend\\: demo version frontend scripts
-\-frontend\\data\\: processed data for demo version
+## FUTURE DEVELOPMENT
 
-\-QGIS\\: QGIS project for data inspection
+Planned development includes:
+- integrating improved material intensity estimates;
+- integrating a demolition curve, e.g. temporal information on potential material release;
+- testing transferability across different building datasets and case-study locations; and
+- preparing analytical outputs for later visualisation and decision-support applications.
 
-\-.gitignore\\: untracked files
+## PROJECT
+
+**EU-MAT: Effective Urban Material Mining in Cities**
+Project duration: 1 September 2025 – 31 August 2028
+The project brings together partners from Finland, Sweden and Norway to develop methods and applications supporting the identification, recovery and reuse of materials embedded in the built environment.
+
