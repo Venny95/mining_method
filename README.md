@@ -20,6 +20,7 @@ The method distinguishes between three related dimensions of urban mining potent
 
 The analytical workflow is:
 
+```text
 Building stock data
     ↓
 Building-level material stock estimation
@@ -31,6 +32,7 @@ Material concentration and cluster analysis
 Network-based accessibility analysis
     ↓
 Planning-oriented interpretation
+```
 
 The current results describe estimated material stocks embedded in the existing building stock. They should not be interpreted directly as recoverable material flows unless information about demolition timing, material condition, technical recoverability and other relevant constraints is available.
 
