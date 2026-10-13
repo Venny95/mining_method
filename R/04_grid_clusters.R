@@ -1,5 +1,5 @@
 # rakennusten liittäminen ruutuihin
-# materiaalimäärät aikajaksoittain
+# TO DO: materiaalimäärät aikajaksoittain
 # korkean materiaalimäärän ruutujen valinta
 # vierekkäisten ruutujen yhdistäminen klustereiksi
 # klusterien tunnusluvut
@@ -8,11 +8,6 @@
 # EPSG:4326 taas sopii dodgr:iin ja MapLibreen
 
 # modifiable areal unit problem (MAUP), sensitivity analysis needed?
-
-#lisää lopulliseen klusteritaulukkoon absoluuttiseen kokonaismäärään perustuvat skenaarioluokitukset
-#anna yhden ruudun klusterin läpäistä sama absoluuttinen klusteriraja
-#testaa ruutukoot ja focal-ikkunat niin, että pystyt erottamaan ruututarkkuuden vaikutuksen naapuruston fyysisen koon vaikutuksesta
-#testaa myös ruudukon siirtoa, koska rajojen sijainti voi vaikuttaa klustereihin
 
 library(sf)
 library(dplyr)
@@ -212,6 +207,7 @@ create_focal_material_clusters <- function(
     material_column,
     material_name,
     cluster_thresholds,
+    grid_size,
     focal_window = 3,
     threshold_quantile = 0.90
 ) {
@@ -223,7 +219,7 @@ create_focal_material_clusters <- function(
     grid_vector,
     terra::rast(
       terra::ext(grid_vector),
-      resolution = grid_size_m,
+      resolution = grid_size,
       crs = terra::crs(grid_vector)
     ),
     field = material_column,
@@ -346,6 +342,7 @@ wood_results <- create_focal_material_clusters(
   material_column = "material_wood_t",
   material_name = "wood",
   cluster_thresholds = wood_cluster_thresholds,
+  grid_size = grid_size_m,
   focal_window = focal_window_cells,
   threshold_quantile = high_material_quantile
 )
@@ -359,6 +356,7 @@ concrete_results <- create_focal_material_clusters(
   material_column = "material_concrete_t",
   material_name = "concrete",
   cluster_thresholds = concrete_cluster_thresholds,
+  grid_size = grid_size_m,
   focal_window = focal_window_cells,
   threshold_quantile = high_material_quantile
 )
