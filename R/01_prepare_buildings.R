@@ -1,29 +1,42 @@
-# 1. RYHTI-aineiston lukeminen
-# 2. purettujen rakennusten poistaminen
-# 3. rakennusvuosi ja vuosikymmen
-# 4. material intensity -kertoimien yhdistäminen
-# 5. rakennuskohtaiset materiaalitonnit
-# 6. myöhemmin demolition_year ja demolition_period kunhan purkuennuste saadaan
-# 7. Save the data
+# ==============================================================================
+# Prepare building-level material stock data
+#
+# Prepares the Joensuu RYHTI building dataset for material mining analysis.
+# Estimates wood and concrete quantities using decade-specific material
+# intensity (MI) coefficients and gross floor area.
+#
+# Material intensity coefficients are based on:
+# Nasiri, F., Kaasalainen, T., Hughes, M. (2023).
+# Estimating the material intensity of wooden residential houses in Finland.
+# Resources, Conservation and Recycling, 198, 107142.
+#
+# Input:
+#   data/processed/ryhti_buildings_joensuu.gpkg
+#   Building-level spatial dataset containing completion date, gross floor area,
+#   demolition information, and building geometry.
+#
+# Output:
+#   data/processed/buildings_material_stock_joensuu.gpkg
+#   Building-level spatial dataset with estimated wood and concrete quantities,
+#   construction year and decade, in ETRS-TM35FIN (EPSG:3067).
+# ==============================================================================
 
 library(sf)
-library(dodgr)
 library(dplyr)
-library(mapview)
 
 
-#========
-# 1
-#========
+# ==============================================================================
+# 1. Read building stock data
+# ==============================================================================
 
-# Joensuu building stock dataset, RYHTI data
+# Joensuu building stock dataset (RYHTI)
 buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/ryhti_buildings_joensuu.gpkg")
 
-#=======
-# 2
-#=======
+# ==============================================================================
+# 2. Filter and clean building data
+# ==============================================================================
 
-#Remove demolished buildings
+# Remove buildings recorded as demolished
 buil_sf <- buil_sf %>%
   filter(is.na(purkamispaivamaara))
 
@@ -33,17 +46,17 @@ buil_sf <- buil_sf %>%
          -lammitystapa, -lammitysenergian_lahde, -esteeton, -aanestysaluenumero)
 
 
-#=======
-# 3
-#=======
+# ==============================================================================
+# 3. Derive construction year and decade
+# ==============================================================================
 
+# Building decade is required for assigning material intensity coefficients.
+# Building year is retained for building-level information and visualization.
 
-# For MI COEFFICIENT a building decade is needed
-# Building year for demo tool information pop-up
-
-#Extracting the building decade (NAs untouched)
+# Check the number of missing completion dates
 sum(is.na(buil_sf$valmistumispaivamaara))
 
+# Extract construction decade; missing or invalid dates remain NA
 buil_sf <- buil_sf |>
   mutate(
     building_decade = if_else(
@@ -53,7 +66,7 @@ buil_sf <- buil_sf |>
     )
   )
 
-#Extracting the building year (NAs untouched)
+# Extract construction year; missing or invalid dates remain NA
 buil_sf <- buil_sf |>
   mutate(
     building_year = if_else(
@@ -63,16 +76,20 @@ buil_sf <- buil_sf |>
     )
   )
 
-# =========================
-# 4.MATERIAL INTENSITY
-# =========================
+# ==============================================================================
+# 4. Estimate building-level material quantities
+# ==============================================================================
 
-# MI COEFFICIENT for wood
-# gross floor area * MI (kg / m2)
+# Material quantities are estimated by multiplying gross floor area
+# (kerrosala) by decade-specific material intensity coefficients (kg/m2).
+#
+# For decades without separate MI coefficients, coefficients from the nearest
+# available reference decade are used as specified below.
 
-#In many cases the gross floor area is '0' and MI is therefore also 0 -> NA
+# In many cases the gross floor area is '0' and MI is therefore also 0 -> NA
 # Some buildings are older than from 1910s
 
+# Wood
 buil_sf <- buil_sf |>
   mutate(
     MI_wood_kg = case_when(
@@ -94,8 +111,8 @@ buil_sf <- buil_sf |>
 
 
 
-# MI COEFFICIENT for concrete
-# gross floor area * MI (kg / m2)
+# Concrete
+
 buil_sf <- buil_sf |>
   mutate(
     MI_concrete_kg = case_when(
@@ -115,20 +132,27 @@ buil_sf <- buil_sf |>
     MI_concrete_kg = ifelse(MI_concrete_kg == 0, NA_real_, MI_concrete_kg) # If 0, change NA
   )
 
-# Convert material quantities from kg to tonnes
+# ==============================================================================
+# 5. Convert material quantities to tonnes
+# ==============================================================================
+
 buil_sf <- buil_sf |>
   mutate(
     material_wood_t = MI_wood_kg / 1000,
     material_concrete_t = MI_concrete_kg / 1000
   )
 
-#=======
-# 7
-#=======
+# ==============================================================================
+# 6. Transform coordinate reference system
+# ==============================================================================
 
 # Use ETRS-TM35FIN for distance- and area-based analysis
 buil_analysis <- buil_sf |>
   st_transform(3067)
+
+# ==============================================================================
+# 7. Save processed data
+# ==============================================================================
 
 st_write(
   buil_analysis,
