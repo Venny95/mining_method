@@ -234,7 +234,7 @@ calculate_clusters <- function(
       1,
       NA
     ),
-    directions = 8
+    directions = patch_directions
   )
   
   concrete_clusters <- terra::patches(
@@ -243,7 +243,7 @@ calculate_clusters <- function(
       1,
       NA
     ),
-    directions = 8
+    directions = patch_directions
   )
   
   wood_seed_ids <- unique(
