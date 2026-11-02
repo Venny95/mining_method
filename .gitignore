@@ -1,32 +1,56 @@
-# R
-.Rproj.user
+
+# R / RStudio
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
 .RDataTmp
+.Renviron
+.Renviron.*
+.Rprofile
 
-#RStudio
-.Rproj.user/
-
-#Data
+# Data
 R/data/raw/
 R/data/processed/
-frontend/data
+frontend/data/
+R/archive/
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.tif
+*.tiff
+*.geojson
+*.csv
+*.parquet
+*.rds
+*.RData
 
-#Jupyter
-.ipynb_checkpoints/
-
-#QGIS
+# QGIS
 QGIS/
-
-#OS
-Thumbs.db
-.DS_Store
-
-# QGIS project files
 *.qgz
 *.qgs
 *.qgd
 
-# Archive files
-R/archive
+# Credentials and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+.pgpass
+*credentials*.json
+*secret*.json
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+
+# Temporary files
+*.log
+*.tmp
+*~
+.DS_Store
+Thumbs.db
