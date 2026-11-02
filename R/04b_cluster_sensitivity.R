@@ -157,6 +157,63 @@ scenarios$focal_width_m <-
 
 print(scenarios)
 
+# ==============================================================================
+# 2b. Additional grid and focal neighbourhood combinations
+# ==============================================================================
+
+# Test smaller grid cells with different physical focal widths.
+# Keep seed quantile, connectivity and grid origin fixed.
+
+additional_scenarios <- expand.grid(
+  grid_size_m = 50,
+  focal_window_cells = c(3, 5, 7),
+  growth_quantile = c(0.80, 0.85)
+)
+
+additional_scenarios$scenario <- sprintf(
+  "grid_%sm_focal_%s_growth_%s",
+  additional_scenarios$grid_size_m,
+  additional_scenarios$focal_window_cells,
+  gsub(
+    "\\.",
+    "",
+    sprintf("%.2f", additional_scenarios$growth_quantile)
+  )
+)
+
+additional_scenarios$test_type <- "grid-focal combination"
+additional_scenarios$seed_quantile <- 0.90
+additional_scenarios$patch_directions <- 8
+additional_scenarios$offset_x_m <- 0
+additional_scenarios$offset_y_m <- 0
+
+additional_scenarios$focal_width_m <-
+  additional_scenarios$grid_size_m *
+  additional_scenarios$focal_window_cells
+
+# Match the existing scenario table structure.
+additional_scenarios <- additional_scenarios[
+  , names(scenarios)
+]
+
+# Avoid duplicating the existing 50 m / 3x3 / 0.80 scenario.
+additional_scenarios <- additional_scenarios[
+  !(
+    additional_scenarios$grid_size_m == 50 &
+      additional_scenarios$focal_window_cells == 3 &
+      additional_scenarios$growth_quantile == 0.80
+  ),
+]
+
+scenarios <- rbind(
+  scenarios,
+  additional_scenarios
+)
+
+stopifnot(!anyDuplicated(scenarios$scenario))
+
+print(scenarios)
+
 
 # ==============================================================================
 # 3. Run all scenarios
