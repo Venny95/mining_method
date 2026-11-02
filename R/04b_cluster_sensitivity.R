@@ -45,7 +45,7 @@ concrete_cluster_thresholds <- c(significant = 5000, medium = 20000, high = 5000
 scenarios <- data.frame(
   scenario = c(
     "baseline", "grid_50m", "grid_150m", "focal_5", "focal_7",
-    "seed_085", "seed_095", "growth_075", "growth_080",
+    "seed_0875", "seed_095", "growth_075", "growth_080",
     "connectivity_4", "offset_50_0", "offset_0_50", "offset_50_50",
     "grid_50m_focal_5_growth_080", "grid_50m_focal_7_growth_080",
     "grid_50m_focal_3_growth_085", "grid_50m_focal_5_growth_085",
@@ -64,7 +64,7 @@ scenarios <- data.frame(
     3, 3, 3, 5, 7, 3, 3, 3, 3, 3, 3, 3, 3, 5, 7, 3, 5, 7
   ),
   seed_quantile = c(
-    0.90, 0.90, 0.90, 0.90, 0.90, 0.85, 0.95, 0.90, 0.90,
+    0.90, 0.90, 0.90, 0.90, 0.90, 0.8575, 0.95, 0.90, 0.90,
     0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90
   ),
   growth_quantile = c(
