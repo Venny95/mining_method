@@ -19,6 +19,7 @@ library(terra)
 library(igraph)
 library(mapview)
 
+
 # ==============================================================================
 # 1. Define analysis parameters
 # ==============================================================================
@@ -26,41 +27,50 @@ library(mapview)
 # Grid-cell width and height in metres
 grid_size_m <- 100
 
-# Focal window width and height in grid cells
-# Must be an odd number: 3, 5, 7, ...
+# Focal-window width and height in grid cells
+# The value must be an odd number: 3, 5, 7, ...
 focal_window_cells <- 3
 
-# Relative threshold for identifying high focal material sums
-# A value of 0.90 selects cells within the highest 10% of positive focal sums
-high_material_quantile <- 0.90
+# Upper focal-sum quantile used to identify cluster cores
+seed_quantile <- 0.90
 
-# Material-quantity thresholds for classifying wood clusters, in tonnes
+# Lower focal-sum quantile used to expand clusters around their cores
+growth_quantile <- 0.80
+
+# Cluster-level material thresholds for wood, in tonnes
 wood_cluster_thresholds <- c(
-  low = 500,
+  significant = 500,
   medium = 2000,
   high = 5000
 )
 
-# Material-quantity thresholds for classifying concrete clusters, in tonnes
+# Cluster-level material thresholds for concrete, in tonnes
 concrete_cluster_thresholds <- c(
-  low = 5000,
+  significant = 5000,
   medium = 20000,
   high = 50000
 )
 
+# Check parameter values
+stopifnot(
+  grid_size_m > 0,
+  focal_window_cells >= 3,
+  focal_window_cells %% 2 == 1,
+  seed_quantile > growth_quantile,
+  seed_quantile < 1,
+  growth_quantile > 0
+)
+
 # EPSG:3067 is used because grid dimensions are defined in metres.
-# Grid size, focal-window size and grid origin are tested separately in
-# 04b_cluster_sensitivity.R to evaluate sensitivity to the MAUP.
+# Grid size, focal-window size, grid origin and focal-sum thresholds should
+# be tested separately in 04b_cluster_sensitivity.R.
 
 # ==============================================================================
 # 2. Read building-level material stock data
 # ==============================================================================
 
-buil <- st_read(
-  "data/processed/buildings_material_stock_joensuu.gpkg",
-  quiet = TRUE
-) |>
-  st_transform(3067)
+buil <- vect("data/processed/buildings_material_stock_joensuu.gpkg")
+buil <- project(buil, "EPSG:3067")
 
 # Verify that the required material columns are available
 stopifnot(
@@ -69,378 +79,476 @@ stopifnot(
 )
 
 cat("Buildings:", nrow(buil), "\n")
-cat("CRS:", st_crs(buil)$input, "\n")
+cat("CRS:", crs(buil, describe = TRUE)$name, "\n")
+
 
 # ==============================================================================
-# 3. Create regular grid
+# 3. Prepare building attributes
 # ==============================================================================
 
-# Create a square grid covering the extent of the building dataset
-grid <- st_make_grid(
-  buil,
-  cellsize = grid_size_m,
-  square = TRUE
-) |>
-  st_sf() |>
-  mutate(
-    grid_id = row_number()
-  )
+# Add a building count variable for raster aggregation
+buil$building_count <- 1
 
-cat("All grid cells:", nrow(grid), "\n")
+# Identify buildings with available material data
+buil$buildings_with_wood_data <-
+  as.integer(!is.na(buil$material_wood_t))
+
+buil$buildings_with_concrete_data <-
+  as.integer(!is.na(buil$material_concrete_t))
+
+# Replace missing material quantities with zero
+buil$material_wood_t[is.na(buil$material_wood_t)] <- 0
+buil$material_concrete_t[is.na(buil$material_concrete_t)] <- 0
+
+# Use one point per building for assigning buildings to grid cells
+buil_points <- centroids(buil, inside = TRUE)
 
 # ==============================================================================
-# 4. Assign buildings to grid cells
+# 4. Aggregate buildings to raster grid
 # ==============================================================================
 
-# Add a unique row identifier to verify that each building is retained once
-buil <- buil |>
-  mutate(building_row_id = row_number())
-
-# Assign buildings located strictly within grid cells
-buil_grid <- st_join(
-  buil,
-  grid["grid_id"],
-  join = st_within,
-  left = TRUE
+# Create an empty raster grid covering the building dataset
+# using the defined grid-cell size and the building-data CRS
+grid <- rast(
+  ext(buil),
+  resolution = grid_size_m,
+  crs = crs(buil)
 )
 
-cat(
-  "Buildings assigned with st_within:",
-  sum(!is.na(buil_grid$grid_id)),
-  "\n"
-)
-
-cat(
-  "Buildings on grid boundaries:",
-  sum(is.na(buil_grid$grid_id)),
-  "\n"
-)
-
-# Identify buildings that were not assigned because they lie exactly on
-# grid-cell boundaries
-missing_grid <- which(is.na(buil_grid$grid_id))
-
-# Assign boundary buildings to the grid cell with the nearest centroid
-if (length(missing_grid) > 0) {
-  
-  grid_centroids <- st_centroid(
-    st_geometry(grid)
-  )
-  
-  nearest_grid <- st_nearest_feature(
-    buil_grid[missing_grid, ],
-    grid_centroids
-  )
-  
-  buil_grid$grid_id[missing_grid] <-
-    grid$grid_id[nearest_grid]
-}
-
-# Verify that all buildings were assigned exactly once
-stopifnot(
-  nrow(buil_grid) == nrow(buil),
-  !any(is.na(buil_grid$grid_id)),
-  !anyDuplicated(buil_grid$building_row_id)
-)
-
-cat(
-  "Buildings assigned to grid:",
-  nrow(buil_grid),
-  "\n"
-)
-cat(
-  "Unassigned buildings:",
-  sum(is.na(buil_grid$grid_id)),
-  "\n"
+# Aggregate building-level information to grid cells
+# by summing the values of buildings located within each cell
+grid_materials <- rasterize(
+  buil_points,
+  grid,
+  field = c(
+    "building_count",
+    "buildings_with_wood_data",
+    "buildings_with_concrete_data",
+    "material_wood_t",
+    "material_concrete_t"
+  ),
+  fun = "sum",
+  background = 0
 )
 
 # ==============================================================================
-# 5. Aggregate material stocks by grid cell
+# 5. Calculate focal sums
 # ==============================================================================
 
-# Calculate building counts, data availability and material quantities
-# for each occupied grid cell
-grid_summary <- buil_grid |>
-  st_drop_geometry() |>
-  group_by(grid_id) |>
-  summarise(
-    building_count = n(),
-    
-    buildings_with_wood_data =
-      sum(!is.na(material_wood_t)),
-    
-    buildings_with_concrete_data =
-      sum(!is.na(material_concrete_t)),
-    
-    material_wood_t =
-      sum(material_wood_t, na.rm = TRUE),
-    
-    material_concrete_t =
-      sum(material_concrete_t, na.rm = TRUE),
-    
-    .groups = "drop"
-  )
+# Create a square moving window for focal calculations
+w <- matrix(1, focal_window_cells, focal_window_cells)
 
-# Join the aggregated values to the complete grid
-grid_materials <- grid |>
-  left_join(
-    grid_summary,
-    by = "grid_id"
-  )
+# Calculate the total wood and concrete quantities within
+# the moving window around each grid cell
+focal_materials <- focal(
+  grid_materials[[
+    c("material_wood_t_sum", "material_concrete_t_sum")
+  ]],
+  w = w,
+  fun = "sum",
+  fillvalue = 0
+)
 
-# Assign zero values to grid cells without buildings
-grid_materials <- grid_materials |>
-  mutate(
-    building_count =
-      coalesce(building_count, 0L),
-    
-    buildings_with_wood_data =
-      coalesce(buildings_with_wood_data, 0L),
-    
-    buildings_with_concrete_data =
-      coalesce(buildings_with_concrete_data, 0L),
-    
-    material_wood_t =
-      coalesce(material_wood_t, 0),
-    
-    material_concrete_t =
-      coalesce(material_concrete_t, 0)
-  )
+# Rename the focal-sum raster layers
+names(focal_materials) <- c(
+  "focal_wood_t",
+  "focal_concrete_t"
+)
 
-# Review the distributions of grid-level material quantities
-summary(grid_materials$material_wood_t)
-summary(grid_materials$material_concrete_t)
+# Add the focal-sum layers to the grid-level raster data
+grid_materials <- c(
+  grid_materials,
+  focal_materials
+)
+
 
 # ==============================================================================
-# 6. Define function for identifying material clusters
+# 6. Review focal sums
 # ==============================================================================
 
-create_focal_material_clusters <- function(
-    grid_data,
-    material_column,
-    material_name,
-    cluster_thresholds,
-    grid_size,
-    focal_window = 3,
-    threshold_quantile = 0.90
-) {
-  
-  # Convert the grid polygons and their material quantities to raster format
-  grid_vector <- terra::vect(grid_data)
-  
-  material_raster <- terra::rasterize(
-    grid_vector,
-    terra::rast(
-      terra::ext(grid_vector),
-      resolution = grid_size,
-      crs = terra::crs(grid_vector)
-    ),
-    field = material_column,
-    background = 0
-  )
-  
-  # Calculate the total material quantity within each moving neighbourhood
-  focal_raster <- terra::focal(
-    material_raster,
-    w = focal_window,
-    fun = "sum",
-    na.rm = TRUE,
-    fillvalue = 0
-  )
-  
-  names(focal_raster) <- "focal_material_t"
-  
-  # Extract focal sums to the corresponding grid cells
-  focal_values <- terra::extract(
-    focal_raster,
-    terra::vect(
-      st_point_on_surface(
-        st_geometry(grid_data)
-      )
-    )
-  )
-  
-  grid_focal <- grid_data |>
-    mutate(
-      focal_material_t = focal_values$focal_material_t
-    )
-  
-  # Calculate the relative threshold from positive focal sums
-  threshold <- quantile(
-    grid_focal$focal_material_t[
-      grid_focal$focal_material_t > 0
-    ],
-    probs = threshold_quantile,
-    na.rm = TRUE,
-    names = FALSE
-  )
-  
-  # Select material-containing cells in high-material neighbourhoods
-  high_cells <- grid_focal |>
-    filter(
-      focal_material_t >= threshold,
-      .data[[material_column]] > 0
-    )
-  
-  # Form clusters from cells sharing a common edge
-  adjacency <- st_relate(
-    high_cells,
-    high_cells,
-    pattern = "F***1****",
-    sparse = FALSE
-  )
-  
-  # Use connected components to combine adjacent cells into clusters
-  graph <- igraph::graph_from_adjacency_matrix(
-    adjacency,
-    mode = "undirected",
-    diag = FALSE
-  )
-  
-  high_cells$cluster_id <- paste0(
-    material_name,
-    "_",
-    igraph::components(graph)$membership
-  )
-  
-  # Calculate cluster-level statistics and classify clusters by material amount
-  clusters <- high_cells |>
-    group_by(cluster_id) |>
-    summarise(
-      material_type = material_name,
-      grid_count = n(),
-      building_count = sum(building_count, na.rm = TRUE),
-      material_t = sum(
-        .data[[material_column]],
-        na.rm = TRUE
-      ),
-      maximum_focal_material_t = max(
-        focal_material_t,
-        na.rm = TRUE
-      ),
-      .groups = "drop"
-    ) |>
-    mutate(
-      material_scenario = case_when(
-        material_t >= cluster_thresholds["high"] ~ "high",
-        material_t >= cluster_thresholds["medium"] ~ "medium",
-        material_t >= cluster_thresholds["low"] ~ "low",
-        TRUE ~ "below threshold"
-      ),
-      material_scenario = factor(
-        material_scenario,
-        levels = c(
-          "below threshold",
-          "low",
-          "medium",
-          "high"
-        ),
-        ordered = TRUE
-      )
-    )
-  
-  # Return the threshold and intermediate and final spatial results
-  list(
-    threshold = threshold,
-    grid_focal = grid_focal,
-    high_cells = high_cells,
-    clusters = clusters
-  )
-}
+# Wood
+wood_map <- grid_materials[[
+  c("material_wood_t_sum", "focal_wood_t")
+]]
+
+mapview(wood_map)
+
+# Concrete
+concrete_map <- grid_materials[[
+  c("material_concrete_t_sum", "focal_concrete_t")
+]]
+
+mapview(concrete_map)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ==============================================================================
-# 7. Identify wood material clusters
+# 7. Calculate seed and growth thresholds
 # ==============================================================================
 
-wood_results <- create_focal_material_clusters(
-  grid_data = grid_materials,
-  material_column = "material_wood_t",
-  material_name = "wood",
-  cluster_thresholds = wood_cluster_thresholds,
-  grid_size = grid_size_m,
-  focal_window = focal_window_cells,
-  threshold_quantile = high_material_quantile
+# Extract positive focal-sum values
+wood_values <- values(
+  grid_materials[["focal_wood_t"]],
+  na.rm = TRUE
+)
+
+concrete_values <- values(
+  grid_materials[["focal_concrete_t"]],
+  na.rm = TRUE
+)
+
+wood_values <- wood_values[wood_values > 0]
+concrete_values <- concrete_values[concrete_values > 0]
+
+# Calculate material-specific seed and growth thresholds
+wood_seed_threshold <- quantile(
+  wood_values,
+  seed_quantile
+)
+
+concrete_seed_threshold <- quantile(
+  concrete_values,
+  seed_quantile
+)
+
+wood_growth_threshold <- quantile(
+  wood_values,
+  growth_quantile
+)
+
+concrete_growth_threshold <- quantile(
+  concrete_values,
+  growth_quantile
+)
+
+# Identify cells whose focal sums meet or exceed the seed thresholds
+wood_seed <- grid_materials[["focal_wood_t"]] >=
+  wood_seed_threshold
+
+concrete_seed <- grid_materials[["focal_concrete_t"]] >=
+  concrete_seed_threshold
+
+# Rename and add the seed-cell layers
+names(wood_seed) <- "wood_seed"
+names(concrete_seed) <- "concrete_seed"
+
+grid_materials <- c(
+  grid_materials,
+  wood_seed,
+  concrete_seed
 )
 
 # ==============================================================================
-# 8. Identify concrete material clusters
+# 8. Review seed cells
 # ==============================================================================
 
-concrete_results <- create_focal_material_clusters(
-  grid_data = grid_materials,
-  material_column = "material_concrete_t",
-  material_name = "concrete",
-  cluster_thresholds = concrete_cluster_thresholds,
-  grid_size = grid_size_m,
-  focal_window = focal_window_cells,
-  threshold_quantile = high_material_quantile
+wood_seed_map <- ifel(
+  grid_materials[["wood_seed"]] == 1,
+  1,
+  NA
 )
 
-# ==============================================================================
-# 9. Review cluster results
-# ==============================================================================
-
-# List wood clusters from the largest to the smallest material quantity
-wood_results$clusters |>
-  st_drop_geometry() |>
-  select(
-    cluster_id,
-    grid_count,
-    material_t,
-    material_scenario
-  ) |>
-  arrange(desc(material_t))
-
-# List concrete clusters from the largest to the smallest material quantity
-concrete_results$clusters |>
-  st_drop_geometry() |>
-  select(
-    cluster_id,
-    grid_count,
-    material_t,
-    material_scenario
-  ) |>
-  arrange(desc(material_t))
-
-# Count clusters by material scenario
-table(wood_results$clusters$material_scenario)
-table(concrete_results$clusters$material_scenario)
-
-# ==============================================================================
-# 10. Visualize cluster results
-# ==============================================================================
-
-# Define a common colour palette for material scenarios
-scenario_palette <- c(
-  "below threshold" = "#D9D9D9",
-  "low" = "#FFFFB2",
-  "medium" = "#FD8D3C",
-  "high" = "#BD0026"
+concrete_seed_map <- ifel(
+  grid_materials[["concrete_seed"]] == 1,
+  1,
+  NA
 )
 
-# Visualize wood clusters
+names(wood_seed_map) <- "wood_seeds"
+names(concrete_seed_map) <- "concrete_seeds"
+
 mapview(
-  wood_results$clusters,
-  zcol = "material_scenario",
-  col.regions = scenario_palette,
-  color = "grey30",
-  lwd = 1,
-  alpha.regions = 0.8,
-  legend = TRUE,
-  map.types = "CartoDB.Positron",
-  layer.name = "Wood material scenario"
+  wood_seed_map,
+  col.regions = "red",
+  legend = FALSE
 )
 
-# Visualize concrete clusters
 mapview(
-  concrete_results$clusters,
-  zcol = "material_scenario",
-  col.regions = scenario_palette,
-  color = "grey30",
-  lwd = 1,
-  alpha.regions = 0.8,
-  legend = TRUE,
-  map.types = "CartoDB.Positron",
-  layer.name = "Concrete material scenario"
+  concrete_seed_map,
+  col.regions = "blue",
+  legend = FALSE
+)
+
+# Nyt klustereita on runsaasti, mutta vielä ei ole arvioitu mitkä niistä ovat materiaalimäärältään merkittäviä!
+
+
+# ==============================================================================
+# 9. Grow clusters from seed cells
+# ==============================================================================
+
+# Group connected growth cells
+wood_clusters <- patches(
+  ifel(
+    grid_materials[["focal_wood_t"]] >= wood_growth_threshold,
+    1,
+    NA
+  ),
+  directions = 8
+)
+
+concrete_clusters <- patches(
+  ifel(
+    grid_materials[["focal_concrete_t"]] >= concrete_growth_threshold,
+    1,
+    NA
+  ),
+  directions = 8
+)
+
+# Find cluster IDs containing seed cells
+wood_seed_ids <- unique(values(
+  mask(
+    wood_clusters,
+    ifel(grid_materials[["wood_seed"]], 1, NA)
+  ),
+  na.rm = TRUE
+))
+
+concrete_seed_ids <- unique(values(
+  mask(
+    concrete_clusters,
+    ifel(grid_materials[["concrete_seed"]], 1, NA)
+  ),
+  na.rm = TRUE
+))
+
+# Keep only clusters containing seed cells
+wood_clusters <- ifel(
+  wood_clusters %in% wood_seed_ids,
+  wood_clusters,
+  NA
+)
+
+concrete_clusters <- ifel(
+  concrete_clusters %in% concrete_seed_ids,
+  concrete_clusters,
+  NA
+)
+
+names(wood_clusters) <- "wood_cluster"
+names(concrete_clusters) <- "concrete_cluster"
+
+grid_materials <- c(
+  grid_materials,
+  wood_clusters,
+  concrete_clusters
+)
+
+
+
+
+# ==============================================================================
+# 9. Review clusters
+# ==============================================================================
+
+wood_cluster_map <- grid_materials[["wood_cluster"]]
+concrete_cluster_map <- grid_materials[["concrete_cluster"]]
+
+names(wood_cluster_map) <- "wood_clusters"
+names(concrete_cluster_map) <- "concrete_clusters"
+
+mapview(
+  wood_cluster_map,
+  legend = FALSE
+)
+
+mapview(
+  concrete_cluster_map,
+  legend = FALSE
+)
+
+
+
+
+
+
+
+# ==============================================================================
+# 10. Calculate cluster material amounts
+# ==============================================================================
+
+wood_cluster_summary <- zonal(
+  grid_materials[["material_wood_t_sum"]],
+  wood_clusters,
+  fun = "sum",
+  na.rm = TRUE
+)
+
+concrete_cluster_summary <- zonal(
+  grid_materials[["material_concrete_t_sum"]],
+  concrete_clusters,
+  fun = "sum",
+  na.rm = TRUE
+)
+
+names(wood_cluster_summary) <- c(
+  "cluster_id",
+  "material_t"
+)
+
+names(concrete_cluster_summary) <- c(
+  "cluster_id",
+  "material_t"
+)
+
+
+# ==============================================================================
+# 11. Classify clusters
+# ==============================================================================
+
+wood_cluster_summary$class <- cut(
+  wood_cluster_summary$material_t,
+  breaks = c(
+    -Inf,
+    wood_cluster_thresholds,
+    Inf
+  ),
+  labels = c(
+    "below_threshold",
+    "significant",
+    "medium",
+    "high"
+  ),
+  right = FALSE
+)
+
+concrete_cluster_summary$class <- cut(
+  concrete_cluster_summary$material_t,
+  breaks = c(
+    -Inf,
+    concrete_cluster_thresholds,
+    Inf
+  ),
+  labels = c(
+    "below_threshold",
+    "significant",
+    "medium",
+    "high"
+  ),
+  right = FALSE
+)
+
+
+# ==============================================================================
+# 12. Review cluster classifications
+# ==============================================================================
+
+# Convert cluster rasters to polygons
+wood_cluster_map <- as.polygons(
+  wood_clusters,
+  dissolve = TRUE,
+  na.rm = TRUE
+)
+
+concrete_cluster_map <- as.polygons(
+  concrete_clusters,
+  dissolve = TRUE,
+  na.rm = TRUE
+)
+
+names(wood_cluster_map) <- "cluster_id"
+names(concrete_cluster_map) <- "cluster_id"
+
+# Match polygon clusters with cluster summaries
+wood_match <- match(
+  wood_cluster_map$cluster_id,
+  wood_cluster_summary$cluster_id
+)
+
+concrete_match <- match(
+  concrete_cluster_map$cluster_id,
+  concrete_cluster_summary$cluster_id
+)
+
+# Add material amounts and classification labels
+wood_cluster_map$material_t <-
+  wood_cluster_summary$material_t[wood_match]
+
+wood_cluster_map$map_class <-
+  as.character(wood_cluster_summary$class[wood_match])
+
+concrete_cluster_map$material_t <-
+  concrete_cluster_summary$material_t[concrete_match]
+
+concrete_cluster_map$map_class <-
+  as.character(concrete_cluster_summary$class[concrete_match])
+
+# Replace class names with material ranges for the legend
+wood_cluster_map$map_class <- factor(
+  wood_cluster_map$map_class,
+  levels = c(
+    "below_threshold",
+    "significant",
+    "medium",
+    "high"
+  ),
+  labels = c(
+    "< 500 t",
+    "500–1,999 t",
+    "2,000–4,999 t",
+    "≥ 5,000 t"
+  )
+)
+
+concrete_cluster_map$map_class <- factor(
+  concrete_cluster_map$map_class,
+  levels = c(
+    "below_threshold",
+    "significant",
+    "medium",
+    "high"
+  ),
+  labels = c(
+    "< 5,000 t",
+    "5,000–19,999 t",
+    "20,000–49,999 t",
+    "≥ 50,000 t"
+  )
+)
+
+cluster_colours <- c(
+  "grey70",
+  "#FFD54F",
+  "#FF8C42",
+  "#D73027"
+)
+
+# Display wood clusters
+mapview(
+  wood_cluster_map,
+  zcol = "map_class",
+  col.regions = cluster_colours,
+  alpha.regions = 0.75,
+  layer.name = "Wood clusters",
+  map.types = "CartoDB.Positron"
+)
+
+# Display concrete clusters
+mapview(
+  concrete_cluster_map,
+  zcol = "map_class",
+  col.regions = cluster_colours,
+  alpha.regions = 0.75,
+  layer.name = "Concrete clusters",
+  map.types = "CartoDB.Positron"
 )
 
