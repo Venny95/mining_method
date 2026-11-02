@@ -47,7 +47,7 @@ The original analysis has been divided into six numbered R scripts. The scripts 
 *02_prepare_network.R* prepares and weights the OpenStreetMap road network for routing and accessibility analysis.
 
 **03: Building-level accessibility**
-*03_buildings_accessibility.R* calculates the network distance from each building to the nearest reachable facility accepting wood or concrete.
+*03_building_accessibility.R* calculates the network distance from each building to the nearest reachable facility accepting wood or concrete.
 
 **04: Spatial aggregation and material clusters**
 *04_grid_clusters.R* aggregates building-level material estimates into spatial units and identifies local concentrations of concrete and wood. Spatially connected areas are combined into material clusters.
