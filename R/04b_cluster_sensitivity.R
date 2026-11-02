@@ -25,8 +25,10 @@
 
 library(terra)
 library(mapview)
+library(sf)
 
 source("functions/cluster_functions.R")
+source("functions/cluster_metrics.R")
 
 buil <- terra::vect(
   "data/processed/buildings_material_stock_joensuu.gpkg"
@@ -644,3 +646,277 @@ concrete_sensitivity_map
 #   "data/processed/cluster_classification_sensitivity.csv",
 #   row.names = FALSE
 # )
+
+
+
+# ==============================================================================
+# 9. Cluster-level quality assessment
+# ==============================================================================
+#
+# Compare selected parameter combinations using cluster-level metrics.
+#
+# Primary criteria:
+# 1. Local spatial extent
+# 2. Material density
+#
+# Supporting criteria:
+# 3. Material stock
+# 4. Spatial coherence and shape
+# 5. Robustness
+#
+# No new clusters are calculated in this section.
+# ==============================================================================
+
+
+# ==============================================================================
+# 9.1. Select scenarios
+# ==============================================================================
+
+quality_scenarios <- c(
+  "growth_085",
+  "grid_50m_focal_3_growth_085",
+  "grid_50m_focal_5_growth_085",
+  "grid_50m_focal_7_growth_085"
+)
+
+
+# ==============================================================================
+# 9.2. Calculate quality metrics for individual clusters
+# ==============================================================================
+
+cluster_quality <- do.call(
+  rbind,
+  lapply(quality_scenarios, function(scenario) {
+    
+    s <- scenarios[
+      scenarios$scenario == scenario,
+      ,
+      drop = FALSE
+    ]
+    
+    result <- scenario_results[[scenario]]
+    
+    rbind(
+      calculate_cluster_quality(
+        result = result,
+        scenario_row = s,
+        material = "wood"
+      ),
+      calculate_cluster_quality(
+        result = result,
+        scenario_row = s,
+        material = "concrete"
+      )
+    )
+  })
+)
+
+rownames(cluster_quality) <- NULL
+
+print(cluster_quality)
+
+
+# ==============================================================================
+# 9.3. Summarise cluster-level metrics by scenario
+# ==============================================================================
+
+quality_summary <- do.call(
+  rbind,
+  lapply(
+    split(
+      cluster_quality,
+      list(
+        cluster_quality$scenario,
+        cluster_quality$material
+      ),
+      drop = TRUE
+    ),
+    function(x) {
+      
+      data.frame(
+        scenario = x$scenario[1],
+        material = x$material[1],
+        
+        cluster_count = nrow(x),
+        
+        median_area_ha = median(x$area_ha),
+        max_area_ha = max(x$area_ha),
+        
+        median_density_t_ha = median(x$density_t_ha),
+        mean_density_t_ha = mean(x$density_t_ha),
+        
+        median_extent_m = median(x$max_extent_m),
+        max_extent_m = max(x$max_extent_m),
+        
+        median_compactness = median(x$compactness),
+        
+        total_material_t = sum(x$material_t)
+      )
+    }
+  )
+)
+
+rownames(quality_summary) <- NULL
+
+quality_summary <- quality_summary[
+  order(
+    match(quality_summary$scenario, quality_scenarios),
+    match(quality_summary$material, c("wood", "concrete"))
+  ),
+]
+
+print(quality_summary)
+
+
+# ==============================================================================
+# 9.4. Inspect the largest clusters
+# ==============================================================================
+
+# Identify the five largest clusters by area for each scenario
+# and material.
+
+largest_clusters <- do.call(
+  rbind,
+  lapply(
+    split(
+      cluster_quality,
+      list(
+        cluster_quality$scenario,
+        cluster_quality$material
+      ),
+      drop = TRUE
+    ),
+    function(x) {
+      
+      x <- x[
+        order(x$area_ha, decreasing = TRUE),
+        ,
+        drop = FALSE
+      ]
+      
+      head(x, 5)
+    }
+  )
+)
+
+rownames(largest_clusters) <- NULL
+
+largest_clusters <- largest_clusters[
+  order(
+    match(largest_clusters$scenario, quality_scenarios),
+    match(largest_clusters$material, c("wood", "concrete")),
+    -largest_clusters$area_ha
+  ),
+]
+
+print(largest_clusters)
+
+
+# ==============================================================================
+# 9.5. Optional exports
+# ==============================================================================
+
+# Uncomment to save the results.
+
+# write.csv(
+#   cluster_quality,
+#   "data/processed/cluster_quality.csv",
+#   row.names = FALSE
+# )
+
+# write.csv(
+#   quality_summary,
+#   "data/processed/cluster_quality_summary.csv",
+#   row.names = FALSE
+# )
+
+# write.csv(
+#   largest_clusters,
+#   "data/processed/largest_clusters.csv",
+#   row.names = FALSE
+# )
+
+
+
+# ==============================================================================
+# 10. Interactive comparison of cluster geometries
+# ==============================================================================
+
+library(mapview)
+
+map_scenarios <- c(
+  "growth_085",
+  "grid_50m_focal_3_growth_085",
+  "grid_50m_focal_5_growth_085",
+  "grid_50m_focal_7_growth_085"
+)
+
+map_colours <- c(
+  growth_085 = "#636363",
+  grid_50m_focal_3_growth_085 = "#1B9E77",
+  grid_50m_focal_5_growth_085 = "#D95F02",
+  grid_50m_focal_7_growth_085 = "#7570B3"
+)
+
+make_quality_map <- function(material) {
+  
+  layers <- lapply(map_scenarios, function(scenario) {
+    
+    result <- scenario_results[[scenario]]
+    
+    clusters <- result[[paste0(material, "_clusters")]]
+    summary <- result[[paste0(material, "_cluster_summary")]]
+    
+    accepted_ids <- summary$cluster_id[
+      !is.na(summary$class) &
+        summary$class != "below_threshold"
+    ]
+    
+    accepted <- terra::ifel(
+      clusters %in% accepted_ids,
+      clusters,
+      NA
+    )
+    
+    polygons <- terra::as.polygons(
+      accepted,
+      dissolve = TRUE,
+      na.rm = TRUE
+    )
+    
+    names(polygons)[1] <- "cluster_id"
+    
+    # Add cluster-level quality metrics to the map.
+    metrics <- cluster_quality[
+      cluster_quality$scenario == scenario &
+        cluster_quality$material == material,
+      ,
+      drop = FALSE
+    ]
+    
+    idx <- match(polygons$cluster_id, metrics$cluster_id)
+    
+    polygons$area_ha <- round(metrics$area_ha[idx], 1)
+    polygons$material_t <- round(metrics$material_t[idx], 0)
+    polygons$density_t_ha <- round(metrics$density_t_ha[idx], 1)
+    polygons$max_extent_m <- round(metrics$max_extent_m[idx], 0)
+    polygons$compactness <- round(metrics$compactness[idx], 3)
+    
+    mapview(
+      polygons,
+      zcol = NULL,
+      col.regions = map_colours[[scenario]],
+      alpha.regions = 0.45,
+      legend = FALSE,
+      layer.name = scenario,
+      map.types = "CartoDB.Positron"
+    )
+  })
+  
+  Reduce(`+`, layers)
+}
+
+wood_quality_map <- make_quality_map("wood")
+concrete_quality_map <- make_quality_map("concrete")
+
+wood_quality_map
