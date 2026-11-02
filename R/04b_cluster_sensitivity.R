@@ -39,14 +39,13 @@ concrete_cluster_thresholds <- c(significant = 5000, medium = 20000, high = 5000
 
 
 # 2. Sensitivity scenarios ------------------------------------------------------
-# Each row is one test. The original baseline is 100 m / 3x3 / growth 0.80.
-# NOTE: 04_grid_clusters.R currently uses growth 0.85 instead.
+# Each row is one test. The original baseline is 100 m / 3x3 / growth 0.85.
 # Grid resolution tests also change the physical width of the focal window.
 
 scenarios <- data.frame(
   scenario = c(
     "baseline", "grid_50m", "grid_150m", "focal_5", "focal_7",
-    "seed_085", "seed_095", "growth_075", "growth_085",
+    "seed_085", "seed_095", "growth_075", "growth_080",
     "connectivity_4", "offset_50_0", "offset_0_50", "offset_50_50",
     "grid_50m_focal_5_growth_080", "grid_50m_focal_7_growth_080",
     "grid_50m_focal_3_growth_085", "grid_50m_focal_5_growth_085",
@@ -69,8 +68,8 @@ scenarios <- data.frame(
     0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90
   ),
   growth_quantile = c(
-    0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.75, 0.85,
-    0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.85, 0.85, 0.85
+    0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.75, 0.80,
+    0.85, 0.85, 0.85, 0.85, 0.80, 0.80, 0.85, 0.85, 0.85
   ),
   patch_directions = c(rep(8, 9), 4, rep(8, 8)),
   offset_x_m = c(rep(0, 10), 50, 0, 50, rep(0, 5)),
@@ -210,7 +209,7 @@ print(sensitivity_summary)
 # Shape metrics support interpretation; they do not replace map inspection.
 
 quality_scenarios <- c(
-  "growth_085",
+  "baseline",
   "grid_50m_focal_3_growth_085",
   "grid_50m_focal_5_growth_085",
   "grid_50m_focal_7_growth_085"
@@ -333,3 +332,55 @@ concrete_quality_map <- make_quality_map("concrete")
 
 wood_quality_map
 concrete_quality_map
+
+
+
+# Compare material stock in the two candidate clustering methods.
+# Count clusters above the medium and high stock thresholds.
+# Calculate the share of material contained in these clusters.
+
+candidates <- c(
+  "baseline",
+  "grid_50m_focal_5_growth_085"
+)
+
+candidate_quality <- subset(
+  cluster_quality,
+  scenario %in% candidates
+)
+
+stock_comparison <- do.call(
+  rbind,
+  lapply(
+    split(candidate_quality,
+          list(candidate_quality$scenario,
+               candidate_quality$material),
+          drop = TRUE),
+    function(x) {
+      
+      limits <- if (x$material[1] == "wood") {
+        c(medium = 2000, high = 5000)
+      } else {
+        c(medium = 20000, high = 50000)
+      }
+      
+      data.frame(
+        scenario = x$scenario[1],
+        material = x$material[1],
+        cluster_count = nrow(x),
+        medium_or_higher_count =
+          sum(x$material_t >= limits["medium"]),
+        high_count =
+          sum(x$material_t >= limits["high"]),
+        medium_or_higher_share_pct =
+          100 * sum(x$material_t[
+            x$material_t >= limits["medium"]
+          ]) / sum(x$material_t),
+        median_material_t = median(x$material_t)
+      )
+    }
+  )
+)
+
+rownames(stock_comparison) <- NULL
+print(stock_comparison)
