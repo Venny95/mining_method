@@ -9,12 +9,15 @@
 # ==============================================================================
 
 
+
 calculate_clusters <- function(
     buil,
     grid_size_m = 100,
     focal_window_cells = 3,
     seed_quantile = 0.90,
     growth_quantile = 0.80,
+    patch_directions = 8,
+    grid_offset_m = c(0, 0),
     wood_cluster_thresholds = c(
       significant = 500,
       medium = 2000,
@@ -27,14 +30,30 @@ calculate_clusters <- function(
     )
 ) {
   
+  
   stopifnot(
+    is.numeric(grid_size_m),
+    length(grid_size_m) == 1,
+    is.finite(grid_size_m),
     grid_size_m > 0,
+    
+    is.numeric(focal_window_cells),
+    length(focal_window_cells) == 1,
     focal_window_cells >= 3,
     focal_window_cells %% 2 == 1,
+    
     seed_quantile > growth_quantile,
     seed_quantile < 1,
-    growth_quantile > 0
+    growth_quantile > 0,
+    
+    length(patch_directions) == 1,
+    patch_directions %in% c(4, 8),
+    
+    is.numeric(grid_offset_m),
+    length(grid_offset_m) == 2,
+    all(is.finite(grid_offset_m))
   )
+
   
   
   # ==============================================================================
@@ -68,8 +87,31 @@ calculate_clusters <- function(
   # 2. Aggregate building attributes to a grid
   # ==============================================================================
   
+  
+  # Create a grid with a configurable spatial offset.
+  # Grid boundaries are aligned to the requested resolution.
+  # The extent always covers the complete building dataset.
+  
+  building_extent <- terra::ext(buil)
+  
+  x_min <- floor(
+    (terra::xmin(building_extent) - grid_offset_m[1]) / grid_size_m
+  ) * grid_size_m + grid_offset_m[1]
+  
+  x_max <- ceiling(
+    (terra::xmax(building_extent) - grid_offset_m[1]) / grid_size_m
+  ) * grid_size_m + grid_offset_m[1]
+  
+  y_min <- floor(
+    (terra::ymin(building_extent) - grid_offset_m[2]) / grid_size_m
+  ) * grid_size_m + grid_offset_m[2]
+  
+  y_max <- ceiling(
+    (terra::ymax(building_extent) - grid_offset_m[2]) / grid_size_m
+  ) * grid_size_m + grid_offset_m[2]
+  
   grid <- terra::rast(
-    terra::ext(buil),
+    terra::ext(x_min, x_max, y_min, y_max),
     resolution = grid_size_m,
     crs = terra::crs(buil)
   )

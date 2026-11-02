@@ -19,7 +19,7 @@ source("functions/cluster_functions.R")
 grid_size_m <- 100
 focal_window_cells <- 3
 seed_quantile <- 0.90
-growth_quantile <- 0.80
+growth_quantile <- 0.85
 
 wood_cluster_thresholds <- c(
   significant = 500,
@@ -42,15 +42,19 @@ buil <- terra::vect(
   "data/processed/buildings_material_stock_joensuu.gpkg"
 )
 
+
 results <- calculate_clusters(
-  buil,
-  grid_size_m,
-  focal_window_cells,
-  seed_quantile,
-  growth_quantile,
-  wood_cluster_thresholds,
-  concrete_cluster_thresholds
+  buil = buil,
+  grid_size_m = grid_size_m,
+  focal_window_cells = focal_window_cells,
+  seed_quantile = seed_quantile,
+  growth_quantile = growth_quantile,
+  patch_directions = 8,
+  grid_offset_m = c(0, 0),
+  wood_cluster_thresholds = wood_cluster_thresholds,
+  concrete_cluster_thresholds = concrete_cluster_thresholds
 )
+
 
 grid_materials <- results$grid_materials
 wood_clusters <- results$wood_clusters
@@ -230,30 +234,3 @@ mapview(
   map.types = "CartoDB.Positron"
 )
 
-
-# ==============================================================================
-# Verify refactoring results
-# ==============================================================================
-
-# "original" for the original script, "new" for the refactored script.
-version <- "new"
-
-check_results <- list(
-  grid_values = terra::values(grid_materials),
-  grid_names = names(grid_materials),
-  grid_geometry = c(
-    terra::nrow(grid_materials),
-    terra::ncol(grid_materials),
-    terra::res(grid_materials),
-    as.vector(terra::ext(grid_materials))
-  ),
-  wood_cluster_values = terra::values(wood_clusters),
-  concrete_cluster_values = terra::values(concrete_clusters),
-  wood_cluster_summary = wood_cluster_summary,
-  concrete_cluster_summary = concrete_cluster_summary
-)
-
-saveRDS(
-  check_results,
-  paste0("data/processed/cluster_check_", version, ".rds")
-)
