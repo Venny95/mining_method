@@ -15,7 +15,7 @@ calculate_clusters <- function(
     grid_size_m = 100,
     focal_window_cells = 3,
     seed_quantile = 0.90,
-    growth_quantile = 0.80,
+    growth_quantile = 0.85,
     patch_directions = 8,
     grid_offset_m = c(0, 0),
     wood_cluster_thresholds = c(
