@@ -30,7 +30,7 @@ library(dplyr)
 # ==============================================================================
 
 # Joensuu building stock dataset (RYHTI)
-buil_sf <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/ryhti_buildings_joensuu.gpkg")
+buil_sf <- st_read("data/processed/ryhti_buildings_joensuu.gpkg")
 
 # ==============================================================================
 # 2. Filter and clean building data
