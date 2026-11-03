@@ -1,5 +1,5 @@
 # ==============================================================================
-# 04b_cluster_sensitivity.R
+# 02b_cluster_sensitivity.R
 #
 # PURPOSE
 # Test how grid size, focal window, quantiles, connectivity and grid origin

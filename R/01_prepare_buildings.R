@@ -1,5 +1,5 @@
 # ==============================================================================
-# Prepare building-level material stock data
+# 01_prepare_buildings.R
 #
 # Prepares the Joensuu RYHTI building dataset for material mining analysis.
 # Estimates wood and concrete quantities using decade-specific material

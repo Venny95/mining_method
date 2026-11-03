@@ -1,5 +1,5 @@
 # ==============================================================================
-# Calculate building-level network accessibility
+# 04_building_accessibility.R
 #
 # Calculates road-network distances from each building to the nearest wood and
 # concrete facility. Adds the distance, facility name, and facility coordinates

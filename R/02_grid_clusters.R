@@ -1,6 +1,6 @@
 
 # ==============================================================================
-# 04_grid_clusters.R
+# 02_grid_clusters.R
 #
 # Identify spatial clusters of building material stocks.
 # Clustering calculation is shared with 04b_cluster_sensitivity.R.

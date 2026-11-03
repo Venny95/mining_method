@@ -1,5 +1,5 @@
 # ==============================================================================
-# Prepare road network for routing analysis
+# 03_prepare_network.R
 #
 # Prepares the Joensuu OpenStreetMap road network for routing and accessibility
 # analysis. Creates a weighted network graph for heavy goods vehicles (HGV)
