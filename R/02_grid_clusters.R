@@ -234,3 +234,45 @@ mapview(
   map.types = "CartoDB.Positron"
 )
 
+
+
+# ==============================================================================
+# 9. Save accepted material clusters
+# ==============================================================================
+
+# Add original cluster classifications
+wood_cluster_map$class <- as.character(
+  wood_cluster_summary$class[wood_match]
+)
+
+concrete_cluster_map$class <- as.character(
+  concrete_cluster_summary$class[concrete_match]
+)
+
+# Keep clusters meeting the minimum material threshold
+wood_accepted <- wood_cluster_map[
+  !is.na(wood_cluster_map$class) &
+    wood_cluster_map$class != "below_threshold",
+]
+
+concrete_accepted <- concrete_cluster_map[
+  !is.na(concrete_cluster_map$class) &
+    concrete_cluster_map$class != "below_threshold",
+]
+
+# Convert to sf and save as GeoPackages
+st_write(
+  st_as_sf(wood_accepted),
+  "data/processed/wood_clusters.gpkg",
+  delete_dsn = TRUE
+)
+
+st_write(
+  st_as_sf(concrete_accepted),
+  "data/processed/concrete_clusters.gpkg",
+  delete_dsn = TRUE
+)
+
+cat("Saved", nrow(wood_accepted), "wood clusters\n")
+cat("Saved", nrow(concrete_accepted), "concrete clusters\n")
+
