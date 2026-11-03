@@ -8,6 +8,7 @@
 
 library(terra)
 library(mapview)
+library(sf)
 
 source("functions/cluster_functions.R")
 
@@ -275,4 +276,17 @@ st_write(
 
 cat("Saved", nrow(wood_accepted), "wood clusters\n")
 cat("Saved", nrow(concrete_accepted), "concrete clusters\n")
+
+# Save cluster rasters for building-to-cluster assignment
+writeRaster(
+  wood_clusters,
+  "data/processed/wood_cluster_ids.tif",
+  overwrite = TRUE
+)
+
+writeRaster(
+  concrete_clusters,
+  "data/processed/concrete_cluster_ids.tif",
+  overwrite = TRUE
+)
 
