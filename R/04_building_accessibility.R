@@ -38,7 +38,7 @@ library(dplyr)
 
 # Building-level material stock dataset
 buil_sf <- st_read(
-  "C:/Temp/codes/MINING_METHOD/R/data/processed/buildings_material_stock_joensuu.gpkg"
+  "data/processed/buildings_material_stock_joensuu.gpkg"
 )
 
 # Existing wood and concrete processing facilities

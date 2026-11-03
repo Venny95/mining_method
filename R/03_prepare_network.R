@@ -28,7 +28,7 @@ library(dplyr)
 # ==============================================================================
 
 # OpenStreetMap road network dataset downloaded from Geofabrik
-roads <- st_read("C:/Temp/codes/MINING_METHOD/R/data/processed/OSM_roads_joensuu_small.gpkg")
+roads <- st_read("data/processed/OSM_roads_joensuu_small.gpkg")
 
 # ==============================================================================
 # 2. Prepare road network geometries and classes
