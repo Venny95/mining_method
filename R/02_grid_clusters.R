@@ -54,7 +54,7 @@ show_maps <- FALSE
 # 2. Read building data and calculate clusters
 # ==============================================================================
 
-buil <- terra::vect(
+buil <- vect(
   "data/processed/buildings_material_stock_joensuu.gpkg"
 )
 
@@ -81,13 +81,13 @@ concrete_cluster_summary <- results$concrete_cluster_summary
 # 3. Convert cluster rasters to polygons
 # ==============================================================================
 
-wood_cluster_map <- terra::as.polygons(
+wood_cluster_map <- as.polygons(
   wood_clusters,
   dissolve = TRUE,
   na.rm = TRUE
 )
 
-concrete_cluster_map <- terra::as.polygons(
+concrete_cluster_map <- as.polygons(
   concrete_clusters,
   dissolve = TRUE,
   na.rm = TRUE
@@ -243,7 +243,7 @@ if (show_maps) {
   
   cluster_colours <- c("grey70", "#FFD54F", "#FF8C42", "#D73027")
   
-  print(mapview::mapview(
+  print(mapview(
     wood_cluster_map,
     zcol = "map_class",
     col.regions = cluster_colours,
@@ -252,7 +252,7 @@ if (show_maps) {
     map.types = "CartoDB.Positron"
   ))
   
-  print(mapview::mapview(
+  print(mapview(
     concrete_cluster_map,
     zcol = "map_class",
     col.regions = cluster_colours,
