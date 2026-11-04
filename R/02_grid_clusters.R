@@ -241,6 +241,8 @@ if (show_maps) {
     stop("Install the mapview package to display interactive maps.")
   }
   
+  library(mapview)
+  
   cluster_colours <- c("grey70", "#FFD54F", "#FF8C42", "#D73027")
   
   print(mapview(
