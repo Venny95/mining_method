@@ -2,8 +2,8 @@
 # ==============================================================================
 # cluster_functions.R
 #
-# Shared clustering calculation for 04_grid_clusters.R and
-# 04b_cluster_sensitivity.R.
+# Shared clustering calculation for 02_grid_clusters.R and
+# 02b_cluster_sensitivity.R.
 #
 # The calculation follows the original 04 script without methodological changes.
 # ==============================================================================
