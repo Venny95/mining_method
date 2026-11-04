@@ -261,4 +261,3 @@ if (show_maps) {
     map.types = "CartoDB.Positron"
   ))
 }
-
