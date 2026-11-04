@@ -1,133 +1,191 @@
+# Urban Material Mining Method (EU-MAT)
 
-**This README file is a work in progress and will be updated continuously as development proceeds.**
+**Status:** Research and development workflow, currently implemented for the Joensuu case study. The methods and results are preliminary and subject to further evaluation.
 
-# OVERVIEW: URBAN MATERIAL MINING METHOD
+## Overview
 
-This repository contains the **R-based analytical workflow** for the Urban Material Mining Method developed within the **EU-MAT: Effective Urban Material Mining in Cities** project.
+This repository contains an **R-based GIS analytical workflow** developed within **EU-MAT: Effective Urban Material Mining in Cities**. The workflow combines building-level material stock estimation, spatial aggregation and clustering, and road-network accessibility analysis to support urban circular economy planning. A preliminary temporal analysis is also included to explore the potential future release of materials from demolition.
 
-The method supports the identification and spatial assessment of materials embedded in the existing building stock. It combines building-level material stock estimation, spatial aggregation, material concentration analysis and network-based accessibility analysis.
+The current implementation focuses on **wood and concrete** in the existing building stock of **Joensuu, Finland**. The method is intended to be applicable to other cities, subject to the availability and harmonisation of building, material, road-network and facility data. Transferability will be evaluated through applications in other EU-MAT case-study municipalities.
 
-The current workflow focuses on concrete and wood. The method is initially developed and tested using building stock data for **Joensuu, Finland**. Its transferability to other municipal and national data contexts will be assessed during the project.
+The repository contains the **GIS analysis component** of the wider Urban Material Mining Method developed in EU-MAT Work Package 2 (WP2). Other WP2 activities include building-specific case studies, material intensity methodology development, machine-learning research and municipal pilot testing.
 
-The EU-MAT project is implemented from 1 September 2025 to 31 August 2028. Karelia University of Applied Sciences is responsible for the spatial development of the material mining method in cooperation with the project partners.
+## Methodological framework
 
-## METHODOLOGICAL FRAMEWORK
+The workflow examines four related dimensions of urban material mining potential:
 
-The method currently distinguishes between three related dimensions of urban mining potential:
+1. **Material stock:** Estimated quantities of materials embedded in the existing building stock.
+2. **Spatial concentration:** The distribution of material stocks and their concentrations within geographically connected areas.
+3. **Accessibility:** Road-network distances between material sources and potential recovery, processing or reuse facilities.
+4. **Temporal material potential:** Scenario-based estimates of when materials embedded in buildings may become available through demolition.
 
-1. **Material availability**: The estimated quantity of material embedded in the building stock.
-2. **Spatial concentration**: The extent to which material stocks are concentrated within spatially connected areas.
-3. **Accessibility**: The network-based distance from material sources to potential recovery, processing or reuse locations.
-
-A fourth dimension, **temporal availability**, is planned to estimate when materials may become available through future demolition.
-
-The current analytical workflow is:
+The main analytical components are connected as follows:
 
 ```text
-Building stock data
-    ↓
-Building-level material stock estimation
-    ↓
-Spatial aggregation
-    ↓
-Material concentration and cluster analysis
-    ↓
-Network-based accessibility analysis
-    ↓
-Planning-oriented interpretation
+Building stock data + material intensity coefficients
+                         |
+                         v
+             Building-level material stocks
+                         |
+            +------------+-------------+
+            |                          |
+            v                          v
+     Spatial aggregation        Road-network data
+       and clustering           + facility locations
+            |                          |
+            +------------+-------------+
+                         |
+                         v
+           Spatial and accessibility results
+                         |
+                         v
+             Planning-oriented interpretation
+
+Building-level material stocks
+            |
+            v
+  Preliminary demolition model
+            |
+            v
+  Temporal material potential within
+     fixed material-stock clusters
 ```
 
-The current results describe estimated material stocks embedded in the existing building stock and their potential transport destinations. They should not be interpreted directly as recoverable material flows unless information about demolition timing, material condition, technical recoverability and other relevant constraints is available.
+The resulting quantities describe **estimated material potential**, not confirmed recoverable material flows. The current workflow does not establish material condition, technical recoverability, future demand or economic feasibility. Its outputs are intended as spatial information for planning and further assessment, not as definitive decisions on recovery or facility locations.
 
-## CURRENT WORKFLOW
+## Material intensity coefficients and demolition modelling
 
-The R workflow is organised into the following scripts.
+### Material intensity (MI) coefficients
 
-**01: Building data and material stock preparation**  
-*01_prepare_buildings.R* prepares building stock data and calculates preliminary building-level estimates of concrete and wood stocks using material intensity (MI) coefficients.
+The current development version estimates building-level wood and concrete stocks using **material intensity (MI) coefficients taken from Nasiri et al. (2023)**. The Joensuu implementation assigns coefficients by construction decade and multiplies them by building floor area to calculate material quantities. Some decade-specific values in the current script are provisional assignments where direct values are unavailable. The source study concerns wooden residential houses, which is an important limitation when interpreting estimates across a broader building stock.
 
-**02: Spatial aggregation and material clusters**  
-*02_grid_clusters.R* aggregates building-level material estimates into spatial units and identifies spatially connected concentrations of concrete and wood.
+**Aalto University is developing an updated material intensity estimation methodology within EU-MAT**, with the aim of extending material quantity and quality assessment to a wider range of buildings. The MI coefficients currently used in this repository are **temporary inputs for developing and testing the GIS workflow**. They will be replaced or revised using Aalto University's methodology once it is available.
 
-*02b_cluster_sensitivity.R* evaluates the sensitivity of clustering results to methodological parameters, including grid resolution, neighbourhood size, quantile thresholds, connectivity and grid origin.
+**Reference**
 
-**03: Road-network preparation**  
-*03_prepare_network.R* prepares and weights the OpenStreetMap road network for heavy goods vehicle routing.
-
-**04: Building-level accessibility**  
-*04_building_accessibility.R* calculates road-network distances from buildings to eligible material-specific receiving facilities.
-
-**05: Cluster-level accessibility and facility allocation**  
-*05_cluster_accessibility.R* aggregates building-level accessibility and transport estimates to material clusters.
-
-*05b_cluster_facility_allocation.R* analyses how material stocks within clusters are allocated to receiving facilities based on building-level road-network distances.
-
-**06: Results visualisation**  
-*06_export_results.R* contains preliminary visualisation of material clusters and their classifications. Further development of result exports and visualisations is planned.
-
-### Material intensity (MI) calculation
-
-Material intensity coefficients are used to estimate concrete and wood quantities at the building level. The development of the material intensity methodology is led by **Aalto University** within the EU-MAT project.
-
-A preliminary foundation for the approach is presented in:
-
-Nasiri, F., Kaasalainen, T., Hughes, M. (2023).  
-*Estimating the material intensity of wooden residential houses in Finland*.  
-Resources, Conservation and Recycling, Volume 198, 107142.  
-https://doi.org/10.1016/j.resconrec.2023.107142
-
-Further development of the MI coefficients method is ongoing, with the aim of extending it to a broader range of building types across the building stock. An updated and more comprehensive MI coefficients method will be integrated into the Urban Material Mining Method as the project progresses.
+Nasiri, F., Kaasalainen, T., & Hughes, M. (2023). *Estimating the material intensity of wooden residential houses in Finland*. Resources, Conservation and Recycling, 198, 107142. https://doi.org/10.1016/j.resconrec.2023.107142
 
 ### Demolition curve
 
-The development of a demolition curve to estimate the timing of future demolition is led by **Aalto University** within the EU-MAT project.
+The current temporal development version uses an **illustrative Weibull building-lifetime model** to estimate the expected release of materials during future periods. The calculation is conditional on a building having survived to the baseline year (2026). The current illustrative parameters are a median lifetime of 80 years and a shape parameter of 3.
 
-Temporal demolition modelling will be integrated into the analytical workflow to estimate when materials embedded in the existing building stock may become available.
+These parameters **have not been calibrated to observed Finnish demolition events**. The outputs therefore represent development-stage scenarios of expected material potential, not validated demolition forecasts.
 
-## PLANNED TEMPORAL ANALYSES
+**Aalto University is also developing a demolition curve within EU-MAT.** The Weibull model in this repository is a **temporary implementation** used to test the temporal GIS workflow. It is intended to be replaced or updated when Aalto University's demolition modelling method becomes available.
 
-Two complementary approaches are planned to examine the spatial and temporal distribution of potential demolition materials.
+## Analytical workflow
 
-### A. Temporal material potential within static clusters
+The scripts currently included in the repository are organised as follows. All paths below are relative to the `R/` directory.
 
-The existing material clusters, identified from the current building stock, will remain spatially fixed.
+| Script | Purpose | Role |
+| --- | --- | --- |
+| `01_prepare_buildings.R` | Prepare building data and estimate wood and concrete material stocks using provisional MI coefficients | Core |
+| `02_grid_clusters.R` | Aggregate material stocks to a grid and identify spatially connected material concentrations | Core |
+| `functions/cluster_functions.R` | Shared calculation for spatial clustering | Core function |
+| `02b_cluster_sensitivity.R` | Evaluate the effects of grid resolution, neighbourhood size, quantile thresholds, connectivity and grid origin | Method evaluation |
+| `functions/cluster_metrics.R` | Calculate cluster-level area, density, spatial extent and shape metrics | Evaluation function |
+| `03_prepare_network.R` | Prepare and weight an OpenStreetMap road network for heavy goods vehicle (HGV) routing analysis | Core |
+| `04_building_accessibility.R` | Calculate road-network distances from buildings to the nearest eligible wood and concrete receiving facilities | Core |
+| `05_cluster_accessibility.R` | Summarise building-level accessibility at the material-cluster level | Core |
+| `05b_cluster_facility_allocation.R` | Summarise how material stocks within clusters are allocated to receiving facilities based on network distances | Supplementary |
+| `06_demolition_curve.R` | Estimate preliminary building-level and period-specific demolition material potential | Temporal development |
+| `06a_static_cluster_timeline.R` | Quantify expected temporal material potential within fixed, stock-based clusters | Temporal development |
 
-Expected demolition material quantities will be calculated for each cluster and time period. This will allow comparison of how material availability develops over time within existing material concentrations.
+The numerical ordering reflects the principal analytical workflow. The sensitivity, facility-allocation and temporal scripts are complementary analyses and do not all need to be run for every application.
 
-### B. Period-specific temporal clusters
+### Running the Joensuu workflow
 
-Separate material clusters will be identified for each time period using estimated demolition material quantities.
+1. Install R and the packages used by the scripts, including `sf`, `terra`, `dplyr`, `tidyr`, `dodgr`, `ggplot2` and `mapview`.
+2. Prepare the required local datasets described in the [Input data](#input-data) section. **Input datasets are not distributed in this public repository.**
+3. Set the working directory to the repository's `R/` folder. The scripts currently use paths relative to this directory.
+4. Run the core workflow in order:
 
-This approach will examine whether the locations and spatial extent of material concentrations change over time.
+   ```r
+   source("01_prepare_buildings.R")
+   source("02_grid_clusters.R")
+   source("03_prepare_network.R")
+   source("04_building_accessibility.R")
+   source("05_cluster_accessibility.R")
+   ```
 
-### Comparison and logistical assessment
+5. Optionally run `02b_cluster_sensitivity.R` to examine methodological sensitivity, or `05b_cluster_facility_allocation.R` for further facility-allocation summaries, after their required inputs have been generated.
+6. For the preliminary temporal analysis within fixed clusters, run the following after `01` and `02`:
 
-The two approaches will be compared to assess whether existing material stock concentrations adequately represent future demolition material potential or whether temporal modelling reveals different spatial patterns.
+   ```r
+   source("06_demolition_curve.R")
+   source("06a_static_cluster_timeline.R")
+   ```
 
-Temporal material estimates will also be linked to network-based accessibility analysis to assess potential transport requirements and opportunities for local material processing and reuse.
+The workflow is under active development. A fully reproducible release, including recorded R package versions, automated execution checks and more general configuration of city-specific inputs, has not yet been completed.
 
-## DATA
+## Input data
 
 ### Building stock data
 
-The Finnish case application uses building information obtained from the **Finnish Building Stock Data (RYHTI)**. The data provide building locations and attributes used in MI estimation.
+The Joensuu case application uses building information from the **Finnish Building Stock Data (RYHTI)**. The relevant attributes include building locations, completion dates, gross floor areas and demolition records. Building location and attributes are combined with MI coefficients to estimate material stocks.
 
-Data availability and completeness vary between datasets and countries. Therefore, the method may require harmonisation, alternative assumptions or a reduced analytical scope when applied outside the Finnish case.
+Building data completeness and classifications differ between countries. Applications elsewhere may require harmonised building types, dates, floor-area variables, material-intensity assumptions and identifiers, or a reduced scope where specific attributes are missing.
 
 ### Road-network data
 
-**OpenStreetMap (OSM) road network data** are used for network preparation, routing and accessibility analysis.
+**OpenStreetMap (OSM)** road data are used for network preparation, routing and accessibility analysis. The Joensuu implementation uses road geometries and road classes to build a weighted network with `dodgr` and its HGV profile. Network distances are used to assess proximity between buildings and potential material destinations.
 
-### Recovery, processing and reuse locations
+### Recovery, processing and reuse facilities
 
-**Project-specific facility data** are collected within the EU-MAT project. The datasets describe the locations of facilities that process demolition materials and the material fractions accepted by each facility.
+**Project-specific facility data** describe the locations of potential receiving or processing facilities and which material fractions they accept. Wood and concrete are assessed separately because the relevant receiving facilities may differ between materials. Facility locations are used as potential destinations in accessibility analyses; inclusion does not establish future availability or the suitability of a particular recovery operation.
 
-These data are used to identify potential destinations for recovered materials. Concrete and wood are analysed separately because the relevant facility networks may differ between materials.
+### Local input files
 
-## REPOSITORY STRUCTURE
+The current Joensuu scripts expect these files relative to the `R/` directory:
+
+| Input path | Used by | Contents |
+| --- | --- | --- |
+| `data/processed/ryhti_buildings_joensuu.gpkg` | `01` | Building geometries and attributes for material stock estimation |
+| `data/processed/OSM_roads_joensuu_small.gpkg` | `03` | Road geometry and road class (`fclass`) |
+| `data/processed/existing_facilities_joensuu.gpkg` | `04` | Facility locations, names and material acceptance information |
+
+The analytical scripts generate intermediate and output files in `data/processed/`, including GeoPackage (`.gpkg`), GeoTIFF (`.tif`), RDS (`.rds`) and CSV (`.csv`) files. The `.gitignore` excludes local analysis data and common spatial data formats. Data access and distribution must follow the applicable project and source restrictions.
+
+The current Finnish implementation uses **ETRS-TM35FIN (EPSG:3067)** for spatial analyses. Applying the method in another city requires an appropriate local projected coordinate reference system and consistent spatial units.
+
+## Spatial material clustering
+
+`02_grid_clusters.R` uses `calculate_clusters()` from `functions/cluster_functions.R`. The current method:
+
+1. Aggregates building-level material stock estimates to a **100 m grid**.
+2. Calculates local material sums using a **3 × 3-cell moving window** (300 m neighbourhood).
+3. Defines seed cells at or above the **90th percentile** of positive local material sums.
+4. Identifies connected areas at or above the **85th percentile**, retaining only areas that contain seed cells. The default is **eight-neighbour connectivity**.
+5. Quantifies each resulting cluster using the **original grid material stock values**, rather than the overlapping moving-window sums, to avoid double-counting.
+6. Classifies clusters by material-specific stock thresholds. The present thresholds are **exploratory** rather than validated recovery or processing requirements.
+
+This can be described as **moving-window aggregation combined with dual-threshold (hysteresis-style) region growing and connected-component delineation**. The grid resolution, window size, quantile thresholds and connectivity are methodological choices, not universal parameters. Nearby concentrations can be connected through narrow corridors of qualifying cells.
+
+`02b_cluster_sensitivity.R` evaluates the influence of selected parameter choices on cluster counts, material quantities, spatial extent and related metrics. The results should be interpreted together with the assumptions of the MI estimates.
+
+## Road-network accessibility and facility allocation
+
+The road-network component links building-level material stocks and cluster locations with potential material-receiving facilities:
+
+- `03_prepare_network.R` constructs the weighted road network from OSM data.
+- `04_building_accessibility.R` calculates building-level road-network distances to the nearest reachable, material-specific receiving facility.
+- `05_cluster_accessibility.R` aggregates the building-level results to material clusters, allowing the accessibility of spatial material concentrations to be compared.
+- `05b_cluster_facility_allocation.R` provides supplementary summaries of how material quantities within clusters are assigned to receiving facilities based on the calculated routes.
+
+These analyses indicate **potential transport distances and spatial relationships**, not actual future material deliveries, costs or verified facility capacity.
+
+## Temporal material potential: fixed clusters (analysis A)
+
+`06_demolition_curve.R` estimates period-specific expected demolition material potential at the building level using the provisional Weibull model. The current period boundaries are **2026, 2030, 2035, 2040, 2045, 2050 and 2055** (the first interval is four years; subsequent intervals are five years).
+
+`06a_static_cluster_timeline.R` keeps the original material-stock cluster boundaries fixed and calculates expected demolition material quantities within them for each period. This enables a comparison of potential future material release across existing concentrations of wood and concrete stocks.
+
+This analysis describes **temporal potential within fixed material-stock clusters**. It does not identify new clusters independently for each period and should not be presented as a validated forecast. The estimates will need to be revisited when the demolition model being developed at Aalto University is available.
+
+## Repository structure
 
 ```text
-MINING_METHOD/
+mining_method/
 ├── R/
 │   ├── 01_prepare_buildings.R
 │   ├── 02_grid_clusters.R
@@ -136,47 +194,44 @@ MINING_METHOD/
 │   ├── 04_building_accessibility.R
 │   ├── 05_cluster_accessibility.R
 │   ├── 05b_cluster_facility_allocation.R
-│   ├── 06_export_results.R
+│   ├── 06_demolition_curve.R
+│   ├── 06a_static_cluster_timeline.R
 │   └── functions/
+│       ├── cluster_functions.R
+│       └── cluster_metrics.R
 ├── frontend/
+│   ├── index.html
+│   ├── script.js
+│   └── style.css
 ├── README.md
 └── .gitignore
 ```
 
-## MAIN R PACKAGES
+## Visualisation and demo development
 
-The workflow currently uses packages including:
+The `frontend/` folder contains an **early MapLibre and JavaScript map-visualisation prototype**. It is separate from the current R-based analytical calculations and is not a completed end-user interface.
 
-- `sf` for vector spatial data;
-- `dplyr` for data processing;
-- `terra` for rasterisation and focal calculations;
-- `dodgr` for road-network preparation and routing;
-- `ggplot2` and `mapview` for visualisation.
+A future demo interface is envisaged to allow users to explore buildings, view building-specific material estimates and examine routes or distances to potential material-processing or receiving facilities. Further development of visualisation and user-interface functionality will depend on testing and feedback within the project.
 
-## DEMO VERSION
+## Development and evaluation priorities
 
-A demo version of the method is planned to be developed with a visual user interface.
+The ongoing work includes:
 
-The planned interface will use **JavaScript** and **MapLibre** for browser-based map visualisation.
+- documenting the analytical workflow and evaluating the sensitivity of its spatial parameters;
+- comparing preliminary MI-based material estimates with building-specific case-study evidence when available;
+- integrating **Aalto University's updated MI methodology and demolition curve** when these are ready;
+- linking spatial material potential, transport-network analysis and planning-oriented interpretation;
+- evaluating applicability with datasets from **Skellefteå (Sweden)** and **Sortland (Norway)** and gathering municipal feedback; and
+- preparing analyses and outputs for further GIS, visualisation and decision-support applications.
 
-The interface is intended to allow users to select buildings and examine building-specific material estimates and transport routes to relevant processing or reuse facilities.
+Possible subsequent extensions include additional temporal clustering comparisons, more detailed transport or facility-location scenarios, and improvements to the demonstration interface. These are **development directions**, not implemented core features of the current repository.
 
-## FUTURE DEVELOPMENT
+The broader WP2 also includes **machine-learning development with UiT** and building-specific case studies. These activities are connected to the mining method but are not implemented by the R scripts documented here.
 
-Planned development includes:
+## Project
 
-- integrating improved material intensity estimates;
-- integrating demolition timing and temporal material availability;
-- implementing and comparing static-cluster and period-specific temporal analyses;
-- linking temporal material potential with accessibility and transport estimates;
-- assessing opportunities for local material processing and reuse;
-- testing transferability across different building datasets and case-study locations; and
-- preparing analytical outputs for visualisation and decision-support applications.
-
-## PROJECT
-
-**EU-MAT: Effective Urban Material Mining in Cities**
-
+**EU-MAT: Effective Urban Material Mining in Cities**  
+**Programme:** Interreg Aurora  
 **Project duration:** 1 September 2025 – 31 August 2028
 
-The project brings together partners from Finland, Sweden and Norway to develop methods and applications supporting the identification, recovery and reuse of materials embedded in the built environment.
+The project brings together partners from **Finland, Sweden and Norway** to develop methods and applications supporting the identification, recovery and reuse of materials embedded in the built environment. **Karelia University of Applied Sciences** is responsible for the GIS-based development of the material mining workflow in cooperation with the project partners.
