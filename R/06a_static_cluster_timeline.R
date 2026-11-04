@@ -1,10 +1,21 @@
-
 # ==============================================================================
 # 06a_static_cluster_timeline.R
 #
-# Estimate temporal demolition material potential within static clusters.
-# Cluster geometries and classifications remain unchanged.
-# Building-to-cluster assignment uses the original clustering rasters.
+# Estimate period-specific demolition material potential within the fixed
+# wood and concrete stock clusters identified by script 02.
+#
+# The clusters retain their original boundaries and classifications. Buildings
+# are assigned using the original cluster ID rasters, not polygon intersections.
+# Expected demolition amounts come from the provisional scenario in script 06;
+# these are not validated forecasts or confirmed recoverable material flows.
+#
+# Inputs:
+#   data/processed/buildings_material_stock_joensuu.gpkg
+#   data/processed/demolition_potential_by_building.csv
+#   data/processed/wood_clusters.gpkg
+#   data/processed/concrete_clusters.gpkg
+#   data/processed/wood_cluster_ids.tif
+#   data/processed/concrete_cluster_ids.tif
 #
 # Outputs:
 #   data/processed/wood_cluster_timeline.csv
@@ -12,17 +23,20 @@
 #   data/processed/cluster_coverage_by_period.csv
 #   data/processed/wood_cluster_timeline.gpkg
 #   data/processed/concrete_cluster_timeline.gpkg
+#
+# Run from the R/ directory. Plots and interactive maps are optional.
 # ==============================================================================
 
 library(sf)
 library(terra)
 library(dplyr)
 library(tidyr)
-library(ggplot2)
-library(mapview)
+
+show_plots <- FALSE
+show_maps <- FALSE
 
 # ==============================================================================
-# 1. Read input data
+# 1. Read and validate input data
 # ==============================================================================
 
 buildings <- st_read(
@@ -42,12 +56,51 @@ concrete_clusters <- st_read("data/processed/concrete_clusters.gpkg", quiet = TR
 wood_raster <- rast("data/processed/wood_cluster_ids.tif")
 concrete_raster <- rast("data/processed/concrete_cluster_ids.tif")
 
+stopifnot(
+  nrow(buildings) > 0,
+  nrow(demolition) > 0,
+  nrow(wood_clusters) > 0,
+  nrow(concrete_clusters) > 0,
+  "pysyva_rakennustunnus" %in% names(buildings),
+  all(c("pysyva_rakennustunnus", "period", "demolition_probability",
+        "expected_wood_t", "expected_concrete_t") %in% names(demolition)),
+  all(c("cluster_id", "class", "material_t") %in% names(wood_clusters)),
+  all(c("cluster_id", "class", "material_t") %in% names(concrete_clusters)),
+  !anyNA(buildings$pysyva_rakennustunnus),
+  !anyDuplicated(buildings$pysyva_rakennustunnus),
+  !anyNA(demolition$pysyva_rakennustunnus),
+  !anyNA(demolition$period),
+  !anyDuplicated(demolition[c("pysyva_rakennustunnus", "period")]),
+  all(demolition$pysyva_rakennustunnus %in% buildings$pysyva_rakennustunnus),
+  !anyNA(wood_clusters$cluster_id),
+  !anyNA(concrete_clusters$cluster_id),
+  !anyDuplicated(wood_clusters$cluster_id),
+  !anyDuplicated(concrete_clusters$cluster_id),
+  st_crs(wood_clusters) == st_crs(buildings),
+  st_crs(concrete_clusters) == st_crs(buildings),
+  same.crs(wood_raster, vect(buildings)),
+  same.crs(concrete_raster, vect(buildings)),
+  all(is.finite(demolition$demolition_probability)),
+  all(between(demolition$demolition_probability, 0, 1)),
+  all(demolition$expected_wood_t >= 0, na.rm = TRUE),
+  all(demolition$expected_concrete_t >= 0, na.rm = TRUE)
+)
+
+cat("\nStatic cluster timeline inputs:\n")
+cat("Buildings in stock:", nrow(buildings), "\n")
+cat("Buildings in demolition scenario:",
+    length(unique(demolition$pysyva_rakennustunnus)), "\n")
+cat("Periods:", length(unique(demolition$period)), "\n")
+cat("Accepted wood clusters:", nrow(wood_clusters), "\n")
+cat("Accepted concrete clusters:", nrow(concrete_clusters), "\n")
+
 # ==============================================================================
-# 2. Assign buildings to static clusters
+# 2. Assign buildings to the original cluster rasters
 # ==============================================================================
 
-building_points <- terra::centroids(terra::vect(buildings), inside = TRUE)
+building_points <- centroids(vect(buildings), inside = TRUE)
 
+# Use terra::extract explicitly to avoid function masking by other packages.
 buildings$wood_cluster_id <- terra::extract(
   wood_raster, building_points, ID = FALSE
 )[[1]]
@@ -56,28 +109,22 @@ buildings$concrete_cluster_id <- terra::extract(
   concrete_raster, building_points, ID = FALSE
 )[[1]]
 
-stopifnot(
-  !anyNA(buildings$pysyva_rakennustunnus),
-  !anyDuplicated(buildings$pysyva_rakennustunnus),
-  !anyNA(demolition$pysyva_rakennustunnus),
-  !anyDuplicated(demolition[c("pysyva_rakennustunnus", "period")]),
-  all(demolition$pysyva_rakennustunnus %in%
-        buildings$pysyva_rakennustunnus)
-)
-
+# Each building in script 06 appears once per scenario period.
 building_timeline <- buildings |>
   st_drop_geometry() |>
   select(pysyva_rakennustunnus, wood_cluster_id, concrete_cluster_id) |>
   inner_join(demolition, by = "pysyva_rakennustunnus")
 
+stopifnot(nrow(building_timeline) == nrow(demolition))
+
 # ==============================================================================
-# 3. Calculate temporal material potential within clusters
+# 3. Calculate temporal material potential within accepted clusters
 # ==============================================================================
 
 calculate_cluster_timeline <- function(
     buildings, clusters, cluster_column, material_column
 ) {
-  
+  # Raster IDs include rejected clusters. Keep only accepted polygon IDs.
   summary <- buildings |>
     mutate(cluster_id = .data[[cluster_column]]) |>
     filter(cluster_id %in% clusters$cluster_id) |>
@@ -88,6 +135,7 @@ calculate_cluster_timeline <- function(
       .groups = "drop"
     )
   
+  # Include every accepted cluster in every period, even when its potential is 0.
   expand_grid(
     cluster_id = clusters$cluster_id,
     period = unique(buildings$period)
@@ -116,7 +164,7 @@ concrete_timeline <- calculate_cluster_timeline(
 )
 
 # ==============================================================================
-# 4. Validate results and calculate cluster coverage
+# 4. Summarise and validate city-wide cluster coverage
 # ==============================================================================
 
 stopifnot(
@@ -124,6 +172,8 @@ stopifnot(
     nrow(wood_clusters) * length(unique(demolition$period)),
   nrow(concrete_timeline) ==
     nrow(concrete_clusters) * length(unique(demolition$period)),
+  all(is.finite(wood_timeline$expected_material_t)),
+  all(is.finite(concrete_timeline$expected_material_t)),
   all(wood_timeline$expected_material_t >= 0),
   all(concrete_timeline$expected_material_t >= 0)
 )
@@ -162,10 +212,11 @@ stopifnot(
   all(between(cluster_coverage$cluster_share_pct, 0, 100))
 )
 
+cat("\nShare of demolition material potential within fixed clusters:\n")
 print(cluster_coverage)
 
 # ==============================================================================
-# 5. Save results
+# 5. Save cluster timelines and spatial results
 # ==============================================================================
 
 write.csv(
@@ -183,6 +234,7 @@ write.csv(
   row.names = FALSE
 )
 
+# Repeated geometries represent the same fixed cluster in different periods.
 wood_timeline_map <- wood_clusters |>
   select(cluster_id) |>
   left_join(wood_timeline, by = "cluster_id")
@@ -205,43 +257,59 @@ st_write(
   quiet = TRUE
 )
 
+cat("\nStatic cluster timeline outputs saved to data/processed/.\n")
+
 # ==============================================================================
-# 6. Visualise results
+# 6. Optional visualisations
 # ==============================================================================
 
-# Share of city-wide demolition potential within static clusters
-ggplot(
-  cluster_coverage,
-  aes(period, cluster_share_pct, colour = material, group = material)
-) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  labs(
-    title = "Demolition material potential within static clusters",
-    x = "Period",
-    y = "Share of city-wide potential (%)",
-    colour = "Material"
-  ) +
-  theme_minimal()
+if (show_plots) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Install ggplot2 to display the timeline plot.")
+  }
+  library(ggplot2)
+  
+  print(
+    ggplot(
+      cluster_coverage,
+      aes(period, cluster_share_pct, colour = material, group = material)
+    ) +
+      geom_line(linewidth = 1) +
+      geom_point(size = 2) +
+      labs(
+        title = "Demolition material potential within static clusters",
+        x = "Period",
+        y = "Share of city-wide potential (%)",
+        colour = "Material"
+      ) +
+      theme_minimal()
+  )
+}
 
-# Spatial distribution of expected concrete potential
-selected_period <- "2030-2035"
-
-concrete_map <- concrete_timeline_map |>
-  filter(period == selected_period)
-
-concrete_breaks <- 10^seq(
-  0,
-  ceiling(log10(max(concrete_map$expected_material_t) + 1)),
-  length.out = 8
-) - 1
-
-mapview(
-  concrete_map,
-  zcol = "expected_material_t",
-  at = concrete_breaks,
-  col.regions = hcl.colors(8, "Viridis"),
-  layer.name = paste("Expected concrete", selected_period, "(tonnes)"),
-  map.types = "CartoDB.Positron"
-)
-
+if (show_maps) {
+  if (!requireNamespace("mapview", quietly = TRUE)) {
+    stop("Install mapview to display the interactive map.")
+  }
+  
+  # The second available period matches the original 2030-2035 example.
+  periods <- unique(demolition$period)
+  selected_period <- periods[min(2L, length(periods))]
+  
+  concrete_map <- concrete_timeline_map |>
+    filter(period == selected_period)
+  
+  concrete_breaks <- 10^seq(
+    0,
+    ceiling(log10(max(concrete_map$expected_material_t) + 1)),
+    length.out = 8
+  ) - 1
+  
+  print(mapview::mapview(
+    concrete_map,
+    zcol = "expected_material_t",
+    at = concrete_breaks,
+    col.regions = hcl.colors(8, "Viridis"),
+    layer.name = paste("Expected concrete", selected_period, "(tonnes)"),
+    map.types = "CartoDB.Positron"
+  ))
+}
