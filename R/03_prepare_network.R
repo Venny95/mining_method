@@ -1,95 +1,91 @@
 # ==============================================================================
 # 03_prepare_network.R
 #
-# Prepares the Joensuu OpenStreetMap road network for routing and accessibility
-# analysis. Creates a weighted network graph for heavy goods vehicles (HGV)
-# and extracts the vertices of the main connected network component.
+# Prepare the Joensuu OpenStreetMap road network for routing and accessibility
+# analysis using the dodgr heavy goods vehicle (HGV) weighting profile.
 #
 # Input:
 #   data/processed/OSM_roads_joensuu_small.gpkg
-#   OpenStreetMap road network dataset containing road geometries and road
-#   classes (fclass) used for network weighting.
+#   Road geometries and OSM road classes (fclass).
 #
 # Outputs:
 #   data/processed/network_graph.rds
-#   Weighted HGV road network containing the main connected component.
+#   Weighted road network restricted to its largest connected component.
 #
 #   data/processed/network_vertices.rds
-#   Network vertices with unique IDs and geographic coordinates.
+#   Vertices of that component, including IDs and WGS 84 coordinates.
+#
+# Run from the R/ directory.
 # ==============================================================================
-
 
 library(sf)
 library(dodgr)
-library(dplyr)
 
 # ==============================================================================
-# 1. Read road network data
+# 1. Read and prepare road data
 # ==============================================================================
 
-# OpenStreetMap road network dataset downloaded from Geofabrik
+# Local OpenStreetMap extract (Geofabrik).
 roads <- st_read("data/processed/OSM_roads_joensuu_small.gpkg")
+stopifnot("fclass" %in% names(roads))
 
-# ==============================================================================
-# 2. Prepare road network geometries and classes
-# ==============================================================================
-
-# Transform to WGS 84 and convert geometries to LINESTRING format
-# for routing and network analysis
+# Convert road geometries to WGS 84 LINESTRING features.
 roads <- roads |>
   st_transform(4326) |>
   st_cast("LINESTRING")
 
-# Check the number of road segments
-cat("Edges:", nrow(roads), "edges\n")
+# Use the residential road class for segments labelled "unknown".
+# This is a provisional classification assumption of the current workflow.
+unknown_count <- sum(roads$fclass == "unknown", na.rm = TRUE)
+roads$fclass[!is.na(roads$fclass) & roads$fclass == "unknown"] <- "residential"
 
-# Check the number of road segments classified as "unknown"
-sum(roads$fclass == "unknown", na.rm = TRUE)
-
-# Reclassify "unknown" road segments as "residential"
-roads$fclass[roads$fclass == "unknown"] <- "residential"
+cat("\nRoad network input:\n")
+cat("Road features after geometry conversion:", nrow(roads), "\n")
+cat("Road features reclassified from unknown:", unknown_count, "\n")
+cat("Missing road classes:", sum(is.na(roads$fclass)), "\n")
 
 # ==============================================================================
-# 3. Create weighted road network
+# 2. Build weighted network graph
 # ==============================================================================
 
-# Build routing graph using the dodgr HGV weighting profile (weighted for motor vehicles)
 graph <- weight_streetnet(
   roads,
   wt_profile = "hgv",
   type_col = "fclass"
 )
 
-# ==============================================================================
-# 4. Select main connected component
-# ==============================================================================
+stopifnot("component" %in% names(graph))
 
-# Retain the main connected component of the road network
-graph_main <- graph [graph$component == 1, ]
+# dodgr numbers connected components by decreasing size (1 = largest).
+graph_main <- graph[graph$component == 1, ]
+stopifnot(nrow(graph_main) > 0)
 
-# Check the number of edges in the main component
-cat("Main component edges:", nrow(graph_main), "edges\n")  
-
-# ==============================================================================
-# 5. Extract network vertices
-# ==============================================================================
-
-# Extract vertices from the main network component
-# Each row represents one network vertex with its ID and coordinates
-v <- dodgr_vertices(graph_main)
-
-head(v)
+cat("\nWeighted network graph:\n")
+cat("Total directed graph edges:", nrow(graph), "\n")
+cat("Connected components:", length(unique(graph$component)), "\n")
+cat("Main component edges:", nrow(graph_main), "\n")
+cat("Main component share of edges:",
+    round(100 * nrow(graph_main) / nrow(graph), 1), "%\n")
 
 # ==============================================================================
-# 6. Save processed network data
+# 3. Extract and check network vertices
 # ==============================================================================
 
-saveRDS(
-  graph_main,
-  "data/processed/network_graph.rds"
+vertices <- dodgr_vertices(graph_main)
+stopifnot(
+  all(c("id", "x", "y") %in% names(vertices)),
+  !anyNA(vertices$id),
+  !anyDuplicated(vertices$id)
 )
 
-saveRDS(
-  v,
-  "data/processed/network_vertices.rds"
-)
+cat("Main component vertices:", nrow(vertices), "\n")
+
+# ==============================================================================
+# 4. Save processed network data
+# ==============================================================================
+
+saveRDS(graph_main, "data/processed/network_graph.rds")
+saveRDS(vertices, "data/processed/network_vertices.rds")
+
+cat("\nNetwork outputs saved to data/processed/.\n")
+
