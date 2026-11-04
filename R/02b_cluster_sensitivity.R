@@ -1,46 +1,46 @@
 # ==============================================================================
 # 02b_cluster_sensitivity.R
 #
-# PURPOSE
-# Test how grid size, focal window, quantiles, connectivity and grid origin
-# affect the identification of wood and concrete material clusters.
+# Evaluate how clustering parameters affect wood and concrete stock clusters.
+# Uses the same calculate_clusters() function as 02_grid_clusters.R.
 #
-# OUTPUTS (in R memory only; no files are saved):
-#   scenarios           - all 18 parameter combinations
-#   scenario_results    - full clustering results for each scenario
-#   sensitivity_summary - counts, stocks, areas, density and Jaccard overlap
-#   cluster_quality     - metrics for individual accepted clusters
-#   quality_summary     - scenario-level summaries of cluster quality
-#   largest_clusters    - five largest clusters by area in each selected case
-#   classification_summary - sensitivity of stock-based class labels
-#   wood_quality_map / concrete_quality_map - interactive comparison maps
+# Analyses:
+#   1. Cluster counts, material stock, area and density across 18 scenarios
+#   2. Spatial overlap with the baseline (Jaccard index)
+#   3. Cluster geometry and quality metrics for four selected scenarios
+#   4. Sensitivity of material-stock classification thresholds
+#   5. Additional comparison of two selected parameter combinations
 #
-# Cluster quality is assessed using three main criteria:
-# 1. Locality: a geographically bounded concentration
-# 2. Sufficient material stock: a meaningful material reserve
-# 3. Material density: material tonnes relative to cluster area
-#
-# Run from the R/ directory. The original clustering algorithm is unchanged.
+# Run from R/. Results are kept in memory unless save_tables is TRUE.
+# Maps are optional. The clustering algorithm itself is not modified.
 # ==============================================================================
-
-# 1. Libraries, data and material thresholds -----------------------------------
 
 library(terra)
 library(sf)
-library(mapview)
 
 source("functions/cluster_functions.R")
 source("functions/cluster_metrics.R")
 
-buil <- terra::vect("data/processed/buildings_material_stock_joensuu.gpkg")
+# ==============================================================================
+# 1. Input, thresholds and output options
+# ==============================================================================
+
+buil <- vect("data/processed/buildings_material_stock_joensuu.gpkg")
 
 wood_cluster_thresholds <- c(significant = 500, medium = 2000, high = 5000)
 concrete_cluster_thresholds <- c(significant = 5000, medium = 20000, high = 50000)
 
+show_maps <- FALSE
+save_tables <- FALSE
 
-# 2. Sensitivity scenarios ------------------------------------------------------
-# Each row is one test. The original baseline is 100 m / 3x3 / growth 0.85.
-# Grid resolution tests also change the physical width of the focal window.
+# ==============================================================================
+# 2. Sensitivity scenarios
+# ==============================================================================
+
+# Baseline: 100 m grid, 3 x 3 neighbourhood, seed 0.90, growth 0.85.
+# Individual tests vary one parameter; combination tests vary more than one.
+# Changing the grid resolution with a fixed cell window also changes its
+# physical width. Thus these scenarios do not isolate grid size alone.
 
 scenarios <- data.frame(
   scenario = c(
@@ -79,11 +79,11 @@ scenarios <- data.frame(
 scenarios$focal_width_m <- scenarios$grid_size_m * scenarios$focal_window_cells
 stopifnot(nrow(scenarios) == 18, !anyDuplicated(scenarios$scenario))
 
+# ==============================================================================
+# 3. Run clustering scenarios
+# ==============================================================================
 
-# 3. Run clustering scenarios ---------------------------------------------------
-# Full raster results stay in memory so that subsequent sections can compare
-# footprints and display maps without running clustering again.
-
+# Store full raster results in memory to avoid re-running scenarios.
 scenario_results <- list()
 
 for (i in seq_len(nrow(scenarios))) {
@@ -103,11 +103,12 @@ for (i in seq_len(nrow(scenarios))) {
   )
 }
 
+# ==============================================================================
+# 4. Scenario summary: clusters, stock, area and density
+# ==============================================================================
 
-# 4. Scenario summary: stock, area and density ----------------------------------
-# Only accepted clusters (class != "below_threshold") contribute to the
-# reported area, stock and density. Material stock comes from original grid
-# values, NOT from overlapping focal sums.
+# Only accepted clusters are included in reported stock, area and density.
+# Material totals come from original grid values, not overlapping focal sums.
 
 accepted_ids <- function(result, material) {
   x <- result[[paste0(material, "_cluster_summary")]]
@@ -116,7 +117,7 @@ accepted_ids <- function(result, material) {
 
 make_accepted_mask <- function(result, material) {
   x <- result[[paste0(material, "_clusters")]]
-  terra::ifel(!is.na(x) & x %in% accepted_ids(result, material), 1, 0)
+  ifel(!is.na(x) & x %in% accepted_ids(result, material), 1, 0)
 }
 
 summarise_scenario <- function(result, s, material) {
@@ -124,12 +125,12 @@ summarise_scenario <- function(result, s, material) {
   ids <- accepted_ids(result, material)
   accepted <- x[x$cluster_id %in% ids, , drop = FALSE]
   
-  counts <- terra::freq(result[[paste0(material, "_clusters")]])
+  counts <- freq(result[[paste0(material, "_clusters")]])
   counts <- counts[counts$value %in% ids, , drop = FALSE]
   area_ha <- sum(counts$count) * s$grid_size_m^2 / 10000
   stock_t <- sum(accepted$material_t)
   
-  city_stock_t <- terra::global(
+  city_stock_t <- global(
     result$grid_materials[[paste0("material_", material, "_t_sum")]],
     "sum", na.rm = TRUE
   )[1, 1]
@@ -154,29 +155,30 @@ sensitivity_summary <- do.call(rbind, lapply(seq_len(nrow(scenarios)), function(
 }))
 rownames(sensitivity_summary) <- NULL
 
+# ==============================================================================
+# 5. Spatial overlap with the baseline: Jaccard index
+# ==============================================================================
 
-# 5. Spatial overlap: Jaccard index ---------------------------------------------
-# Jaccard = area of intersection / area of union of accepted cluster footprints.
-# 1 means identical coverage; 0 means no overlap.
-# This does NOT compare cluster IDs or whether individual clusters split.
-# Resampling to 25 m uses nearest neighbours, so edges are approximate.
+# Jaccard compares accepted-cluster footprints, not individual cluster IDs,
+# their shapes or whether large clusters split into smaller ones.
+# Nearest-neighbour resampling to 25 m makes boundary overlap approximate.
 
-extents <- lapply(scenario_results, function(x) terra::ext(x$grid_materials))
-comparison_grid <- terra::rast(
-  terra::ext(
-    min(vapply(extents, terra::xmin, numeric(1))),
-    max(vapply(extents, terra::xmax, numeric(1))),
-    min(vapply(extents, terra::ymin, numeric(1))),
-    max(vapply(extents, terra::ymax, numeric(1)))
+extents <- lapply(scenario_results, function(x) ext(x$grid_materials))
+comparison_grid <- rast(
+  ext(
+    min(vapply(extents, xmin, numeric(1))),
+    max(vapply(extents, xmax, numeric(1))),
+    min(vapply(extents, ymin, numeric(1))),
+    max(vapply(extents, ymax, numeric(1)))
   ),
   resolution = 25,
-  crs = terra::crs(scenario_results[["baseline"]]$grid_materials)
+  crs = crs(scenario_results[["baseline"]]$grid_materials)
 )
 
 align_mask <- function(result, material) {
-  x <- terra::resample(make_accepted_mask(result, material),
-                       comparison_grid, method = "near")
-  terra::ifel(is.na(x), 0, x)
+  x <- resample(make_accepted_mask(result, material),
+                comparison_grid, method = "near")
+  ifel(is.na(x), 0, x)
 }
 
 spatial_overlap <- do.call(rbind, lapply(c("wood", "concrete"), function(material) {
@@ -184,10 +186,10 @@ spatial_overlap <- do.call(rbind, lapply(c("wood", "concrete"), function(materia
   
   do.call(rbind, lapply(names(scenario_results), function(scenario) {
     other_mask <- align_mask(scenario_results[[scenario]], material)
-    intersection <- terra::global((baseline_mask == 1) & (other_mask == 1),
-                                  "sum", na.rm = TRUE)[1, 1]
-    union <- terra::global((baseline_mask == 1) | (other_mask == 1),
+    intersection <- global((baseline_mask == 1) & (other_mask == 1),
                            "sum", na.rm = TRUE)[1, 1]
+    union <- global((baseline_mask == 1) | (other_mask == 1),
+                    "sum", na.rm = TRUE)[1, 1]
     
     data.frame(scenario = scenario, material = material,
                jaccard = if (union > 0) intersection / union else NA_real_)
@@ -198,16 +200,16 @@ sensitivity_summary$jaccard <- spatial_overlap$jaccard[
   match(paste(sensitivity_summary$scenario, sensitivity_summary$material),
         paste(spatial_overlap$scenario, spatial_overlap$material))
 ]
-print(sensitivity_summary)
 
+cat("\nSensitivity summary (all 18 scenarios, wood and concrete):\n")
+print(sensitivity_summary, row.names = FALSE)
 
-# 6. Cluster quality: locality, stock and density -------------------------------
-# Detailed metrics are calculated for four selected scenarios, not all 18.
-# Locality: area, maximum extent and compactness (shape).
-# Material stock: actual tonnes per accepted cluster.
-# Density: actual tonnes / cluster area (t/ha).
-# Shape metrics support interpretation; they do not replace map inspection.
+# ==============================================================================
+# 6. Cluster geometry, locality and density
+# ==============================================================================
 
+# Detailed cluster-quality metrics are calculated for four selected scenarios.
+# Compactness and maximum extent describe geometry, not recovery feasibility.
 quality_scenarios <- c(
   "baseline",
   "grid_50m_focal_3_growth_085",
@@ -249,19 +251,23 @@ order_quality <- function(x) {
   x[order(match(x$scenario, quality_scenarios),
           match(x$material, c("wood", "concrete"))), , drop = FALSE]
 }
+
 quality_summary <- order_quality(quality_summary)
 largest_clusters <- order_quality(largest_clusters)
 rownames(quality_summary) <- NULL
 rownames(largest_clusters) <- NULL
 
-print(quality_summary)
-print(largest_clusters)
+cat("\nCluster quality (selected scenarios):\n")
+print(quality_summary, row.names = FALSE)
+cat("\nLargest clusters by area (selected scenarios):\n")
+print(largest_clusters, row.names = FALSE)
 
+# ==============================================================================
+# 7. Material-stock classification threshold sensitivity
+# ==============================================================================
 
-# 7. Classification threshold sensitivity --------------------------------------
-# Change the stock thresholds by +/-25% without changing cluster geometry.
-# This tests the number of clusters in each material class, not their shapes.
-
+# Vary material-stock thresholds by +/-25% without changing cluster geometry.
+# Classification and accepted-cluster counts may change.
 threshold_factors <- c(0.75, 1, 1.25)
 
 classification_summary <- do.call(rbind, lapply(c("wood", "concrete"), function(material) {
@@ -284,103 +290,113 @@ classification_summary <- do.call(rbind, lapply(c("wood", "concrete"), function(
     )
   }))
 }))
-print(classification_summary)
 
+cat("\nClassification threshold sensitivity (+/-25%):\n")
+print(classification_summary, row.names = FALSE)
 
-# 8. Interactive maps -----------------------------------------------------------
-# Toggle scenario layers on/off to compare accepted cluster footprints.
-# Click a polygon to inspect its area, stock, density, extent and compactness.
-# Change map_scenarios to compare other scenarios; detailed pop-up metrics
-# are available for scenarios included in quality_scenarios.
+# ==============================================================================
+# 8. Compare selected parameter combinations
+# ==============================================================================
 
-map_scenarios <- quality_scenarios
-map_colours <- c("#636363", "#1B9E77", "#D95F02", "#7570B3")
-names(map_colours) <- map_scenarios
+# The share below is relative to the total stock in accepted clusters of
+# that scenario, NOT to the total city-wide stock.
+candidates <- c("baseline", "grid_50m_focal_5_growth_085")
 
-make_quality_map <- function(material) {
-  layers <- lapply(map_scenarios, function(scenario) {
-    result <- scenario_results[[scenario]]
-    clusters <- result[[paste0(material, "_clusters")]]
-    ids <- accepted_ids(result, material)
-    
-    accepted <- terra::ifel(clusters %in% ids, clusters, NA)
-    polygons <- terra::as.polygons(accepted, dissolve = TRUE, na.rm = TRUE)
-    names(polygons)[1] <- "cluster_id"
-    
-    metrics <- cluster_quality[
-      cluster_quality$scenario == scenario &
-        cluster_quality$material == material, , drop = FALSE
-    ]
-    idx <- match(polygons$cluster_id, metrics$cluster_id)
-    polygons$area_ha <- round(metrics$area_ha[idx], 1)
-    polygons$material_t <- round(metrics$material_t[idx], 0)
-    polygons$density_t_ha <- round(metrics$density_t_ha[idx], 1)
-    polygons$max_extent_m <- round(metrics$max_extent_m[idx], 0)
-    polygons$compactness <- round(metrics$compactness[idx], 3)
-    
-    mapview(
-      polygons, zcol = NULL, col.regions = map_colours[[scenario]],
-      alpha.regions = 0.45, legend = FALSE,
-      layer.name = scenario, map.types = "CartoDB.Positron"
-    )
-  })
-  Reduce(`+`, layers)
-}
+candidate_quality <- subset(cluster_quality, scenario %in% candidates)
 
-wood_quality_map <- make_quality_map("wood")
-concrete_quality_map <- make_quality_map("concrete")
-
-wood_quality_map
-concrete_quality_map
-
-
-
-# Compare material stock in the two candidate clustering methods.
-# Count clusters above the medium and high stock thresholds.
-# Calculate the share of material contained in these clusters.
-
-candidates <- c(
-  "baseline",
-  "grid_50m_focal_5_growth_085"
-)
-
-candidate_quality <- subset(
-  cluster_quality,
-  scenario %in% candidates
-)
-
-stock_comparison <- do.call(
-  rbind,
-  lapply(
-    split(candidate_quality,
-          list(candidate_quality$scenario,
-               candidate_quality$material),
-          drop = TRUE),
-    function(x) {
-      
-      limits <- if (x$material[1] == "wood") {
-        c(medium = 2000, high = 5000)
-      } else {
-        c(medium = 20000, high = 50000)
-      }
-      
-      data.frame(
-        scenario = x$scenario[1],
-        material = x$material[1],
-        cluster_count = nrow(x),
-        medium_or_higher_count =
-          sum(x$material_t >= limits["medium"]),
-        high_count =
-          sum(x$material_t >= limits["high"]),
-        medium_or_higher_share_pct =
-          100 * sum(x$material_t[
-            x$material_t >= limits["medium"]
-          ]) / sum(x$material_t),
-        median_material_t = median(x$material_t)
-      )
+stock_comparison <- do.call(rbind, lapply(
+  split(candidate_quality,
+        list(candidate_quality$scenario, candidate_quality$material), drop = TRUE),
+  function(x) {
+    limits <- if (x$material[1] == "wood") {
+      c(medium = 2000, high = 5000)
+    } else {
+      c(medium = 20000, high = 50000)
     }
-  )
-)
+    
+    data.frame(
+      scenario = x$scenario[1], material = x$material[1],
+      cluster_count = nrow(x),
+      medium_or_higher_count = sum(x$material_t >= limits["medium"]),
+      high_count = sum(x$material_t >= limits["high"]),
+      medium_or_higher_share_pct = 100 * sum(x$material_t[
+        x$material_t >= limits["medium"]
+      ]) / sum(x$material_t),
+      median_material_t = median(x$material_t)
+    )
+  }
+))
 
 rownames(stock_comparison) <- NULL
-print(stock_comparison)
+cat("\nSelected parameter combination comparison:\n")
+print(stock_comparison, row.names = FALSE)
+
+# ==============================================================================
+# 9. Optional output tables
+# ==============================================================================
+
+if (save_tables) {
+  output_dir <- "data/processed/cluster_sensitivity"
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  write.csv(scenarios, file.path(output_dir, "scenarios.csv"), row.names = FALSE)
+  write.csv(sensitivity_summary, file.path(output_dir, "sensitivity_summary.csv"), row.names = FALSE)
+  write.csv(cluster_quality, file.path(output_dir, "cluster_quality.csv"), row.names = FALSE)
+  write.csv(quality_summary, file.path(output_dir, "quality_summary.csv"), row.names = FALSE)
+  write.csv(largest_clusters, file.path(output_dir, "largest_clusters.csv"), row.names = FALSE)
+  write.csv(classification_summary, file.path(output_dir, "classification_summary.csv"), row.names = FALSE)
+  write.csv(stock_comparison, file.path(output_dir, "stock_comparison.csv"), row.names = FALSE)
+  cat("\nSensitivity tables saved to", output_dir, "\n")
+}
+
+# ==============================================================================
+# 10. Optional interactive maps
+# ==============================================================================
+
+# Four selected scenarios are shown. Map layers can be toggled on and off.
+if (show_maps) {
+  if (!requireNamespace("mapview", quietly = TRUE)) {
+    stop("Install the mapview package to display interactive maps.")
+  }
+  library(mapview)
+  
+  map_scenarios <- quality_scenarios
+  map_colours <- c("#636363", "#1B9E77", "#D95F02", "#7570B3")
+  names(map_colours) <- map_scenarios
+  
+  make_quality_map <- function(material) {
+    layers <- lapply(map_scenarios, function(scenario) {
+      result <- scenario_results[[scenario]]
+      clusters <- result[[paste0(material, "_clusters")]]
+      ids <- accepted_ids(result, material)
+      
+      accepted <- ifel(clusters %in% ids, clusters, NA)
+      polygons <- as.polygons(accepted, dissolve = TRUE, na.rm = TRUE)
+      names(polygons)[1] <- "cluster_id"
+      
+      metrics <- cluster_quality[
+        cluster_quality$scenario == scenario &
+          cluster_quality$material == material, , drop = FALSE
+      ]
+      idx <- match(polygons$cluster_id, metrics$cluster_id)
+      polygons$area_ha <- round(metrics$area_ha[idx], 1)
+      polygons$material_t <- round(metrics$material_t[idx], 0)
+      polygons$density_t_ha <- round(metrics$density_t_ha[idx], 1)
+      polygons$max_extent_m <- round(metrics$max_extent_m[idx], 0)
+      polygons$compactness <- round(metrics$compactness[idx], 3)
+      
+      mapview(
+        polygons, zcol = NULL, col.regions = map_colours[[scenario]],
+        alpha.regions = 0.45, legend = FALSE,
+        layer.name = scenario, map.types = "CartoDB.Positron"
+      )
+    })
+    Reduce(`+`, layers)
+  }
+  
+  wood_quality_map <- make_quality_map("wood")
+  concrete_quality_map <- make_quality_map("concrete")
+  print(wood_quality_map)
+  print(concrete_quality_map)
+}
+
