@@ -57,9 +57,11 @@ The resulting quantities describe **estimated material potential**, not confirme
 
 ### Material intensity (MI) coefficients
 
-The current development version estimates building-level wood and concrete stocks using **material intensity (MI) coefficients taken from Nasiri et al. (2023)**. The Joensuu implementation assigns coefficients by construction decade and multiplies them by building floor area to calculate material quantities. Some decade-specific values in the current script are provisional assignments where direct values are unavailable. The source study concerns wooden residential houses, which is an important limitation when interpreting estimates across a broader building stock.
+The current development version estimates building-level wood and concrete stocks using material intensity (MI) coefficients from Nasiri et al. (2023). These coefficients were developed for wooden residential buildings in Finland and cover a limited range of construction periods. **They are therefore not directly applicable to the entire building stock.**
 
-**Aalto University is developing an updated material intensity estimation methodology within EU-MAT**, with the aim of extending material quantity and quality assessment to a wider range of buildings. The MI coefficients currently used in this repository are **temporary inputs for developing and testing the GIS workflow**. They will be replaced or revised using Aalto University's methodology once it is available.
+In the current implementation, the coefficients are nevertheless applied to the wider building stock, with provisional assumptions for construction decades not covered by the original study. This simplified approach is used solely to develop and test the GIS-based analytical workflow until a more comprehensive material estimation methodology becomes available. Consequently, the resulting material stock estimates should be interpreted as preliminary and are not considered validated estimates of the city's actual material stocks.
+
+**Aalto University is developing an updated material intensity estimation methodology within the EU-MAT project.** The current coefficients and provisional assumptions will be replaced or revised using Aalto University's methodology once it becomes available.
 
 **Reference**
 
