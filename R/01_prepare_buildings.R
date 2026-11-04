@@ -79,15 +79,23 @@ buil_sf <- buil_sf |>
 # ==============================================================================
 # 4. Estimate building-level material quantities
 # ==============================================================================
+# Current MI coefficients are taken from Nasiri et al. (2023).
+# They were developed for wooden residential buildings and a limited
+# range of construction periods, and are not applicable to all building types.
+#
+# In this development version, the coefficients are applied to the wider
+# building stock to test the GIS workflow. Some construction decades use
+# provisional coefficients from other decades.
+#
+# These preliminary estimates will be updated using the MI methodology
+# currently being developed by Aalto University.
+
 
 # Material quantities are estimated by multiplying gross floor area
 # (kerrosala) by decade-specific material intensity coefficients (kg/m2).
 #
 # For decades without separate MI coefficients, coefficients from the nearest
 # available reference decade are used as specified below.
-
-# In many cases the gross floor area is '0' and MI is therefore also 0 -> NA
-# Some buildings are older than from 1910s
 
 # Wood
 buil_sf <- buil_sf |>
@@ -151,7 +159,50 @@ buil_analysis <- buil_sf |>
   st_transform(3067)
 
 # ==============================================================================
-# 7. Save processed data
+# 7. Check the processed building data
+# ==============================================================================
+
+building_data <- st_drop_geometry(buil_analysis)
+
+# Summarise data completeness
+quality_summary <- building_data |>
+  summarise(
+    buildings = n(),
+    missing_year = sum(is.na(building_year)),
+    missing_floor_area = sum(is.na(kerrosala)),
+    nonpositive_floor_area = sum(!is.na(kerrosala) & kerrosala <= 0),
+    missing_wood = sum(is.na(material_wood_t)),
+    missing_concrete = sum(is.na(material_concrete_t)),
+    duplicate_ids = sum(duplicated(pysyva_rakennustunnus))
+  )
+
+cat("\nBuilding data quality summary:\n")
+print(quality_summary)
+
+# Identify reasons for missing material estimates
+estimate_summary <- building_data |>
+  mutate(
+    estimate_status = case_when(
+      is.na(building_year) ~ "Missing construction year",
+      is.na(kerrosala) ~ "Missing floor area",
+      kerrosala <= 0 ~ "Non-positive floor area",
+      !building_decade %in% seq(1910, 2020, 10) ~ "No MI coefficient",
+      TRUE ~ "Material estimate available"
+    )
+  ) |>
+  count(estimate_status)
+
+cat("\nMaterial estimate availability:\n")
+print(estimate_summary)
+
+# Validate building identifiers
+stopifnot(
+  !anyNA(building_data$pysyva_rakennustunnus),
+  !anyDuplicated(building_data$pysyva_rakennustunnus)
+)
+
+# ==============================================================================
+# 8. Save processed data
 # ==============================================================================
 
 st_write(
