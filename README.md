@@ -201,19 +201,9 @@ mining_method/
 │   └── functions/
 │       ├── cluster_functions.R
 │       └── cluster_metrics.R
-├── frontend/
-│   ├── index.html
-│   ├── script.js
-│   └── style.css
 ├── README.md
 └── .gitignore
 ```
-
-## Visualisation and demo development
-
-The `frontend/` folder contains an **early MapLibre and JavaScript map-visualisation prototype**. It is separate from the current R-based analytical calculations and is not a completed end-user interface.
-
-A future demo interface is envisaged to allow users to explore buildings, view building-specific material estimates and examine routes or distances to potential material-processing or receiving facilities. Further development of visualisation and user-interface functionality will depend on testing and feedback within the project.
 
 ## Development and evaluation priorities
 
@@ -224,9 +214,9 @@ The ongoing work includes:
 - integrating **Aalto University's updated MI methodology and demolition curve** when these are ready;
 - linking spatial material potential, transport-network analysis and planning-oriented interpretation;
 - evaluating applicability with datasets from **Skellefteå (Sweden)** and **Sortland (Norway)** and gathering municipal feedback; and
-- preparing analyses and outputs for further GIS, visualisation and decision-support applications.
+- preparing analytical results for further methodological evaluation and planning-oriented interpretation.
 
-Possible subsequent extensions include additional temporal clustering comparisons, more detailed transport or facility-location scenarios, and improvements to the demonstration interface. These are **development directions**, not implemented core features of the current repository.
+Possible subsequent extensions include additional temporal clustering comparisons and more detailed transport or facility-location scenarios. These are development directions, not implemented core features of the current repository.
 
 The broader WP2 also includes **machine-learning development with UiT** and building-specific case studies. These activities are connected to the mining method but are not implemented by the R scripts documented here.
 
